@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Processing complete',
-      obligations: result.obligationsCount,
-      cost: result.totalCost,
+      obligations: result.obligations,
+      cost: result.cost,
     });
   } catch (error: any) {
     console.error('[Process API] Error:', error.message);
