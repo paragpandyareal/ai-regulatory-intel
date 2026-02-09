@@ -1,4 +1,4 @@
-import { callClaude, calculateCost, repairJsonArray } from '@/lib/ai';
+import { callClaude, calculateCost, repairJsonArray, repairJsonObject } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface ParsedSection {
@@ -41,16 +41,19 @@ export async function parseDocument(
     return cached.output as ParsedDocument;
   }
 
-  // Step 1: Get document structure (sections list only - no content)
-  const structureResponse = await callClaude(
-    `You are a regulatory document parser for Australian energy sector documents.
+  // Single call: get structure + extract obligation text in one pass
+  // Ask Claude to only return the obligation-relevant sentences, not full content
+  const response = await callClaude(
+    `You are a regulatory document parser for Australian energy sector documents (AEMO, AEMC, AER, ESB, ESC).
 
-Analyze this PDF and list ALL sections with their metadata. Do NOT include section content text.
+Analyze this PDF and extract:
+1. Document metadata
+2. ALL sections with their obligation-relevant content
 
 RESPOND WITH ONLY VALID JSON:
 {
   "title": "Full document title",
-  "document_type": "Procedure",
+  "document_type": "Procedure or Rule or Guideline",
   "effective_date": "YYYY-MM-DD or null",
   "version": "version string or null",
   "total_pages": 90,
@@ -58,6 +61,7 @@ RESPOND WITH ONLY VALID JSON:
     {
       "section_number": "1.1",
       "title": "Section title",
+      "content": "Only sentences containing obligations - those with must/shall/required/should/may/means/refers to. Include 1 sentence of context before each obligation.",
       "page_start": 1,
       "page_end": 3,
       "has_obligations": true
@@ -65,119 +69,29 @@ RESPOND WITH ONLY VALID JSON:
   ]
 }
 
-RULES:
+CRITICAL RULES:
 - List ALL sections including appendices
-- Preserve exact section numbering from the document
-- Set has_obligations to true if section contains "must", "shall", "required to", "obligated to", "is to"
-- Do NOT include content field yet
-- Keep response compact
+- For has_obligations=true sections: include ONLY sentences with obligation language (must, shall, required to, should, may, means, refers to) plus 1 sentence of context each
+- For has_obligations=false sections: set content to empty string ""
+- This keeps the response compact enough to fit
+- Preserve exact section numbering
 
-RESPOND WITH ONLY THE JSON OBJECT.`,
+RESPOND WITH ONLY THE JSON OBJECT. No markdown fences.`,
     pdfBase64,
-    8000
+    32000
   );
 
-  let structure: any;
+  const cost = calculateCost(response.inputTokens, response.outputTokens);
+  await logCost(documentId, 'parsing', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
+
+  let parsed: ParsedDocument;
   try {
-    const cleaned = structureResponse.text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    structure = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+    const cleaned = repairJsonObject(response.text);
+    parsed = JSON.parse(cleaned);
   } catch (e) {
-    console.error('[Parser] Failed to parse structure:', structureResponse.text.substring(0, 1000));
-    throw new Error('AI returned invalid JSON for document structure');
+    console.error('[Parser] Failed to parse. First 2000 chars:', response.text.substring(0, 2000));
+    throw new Error('AI returned invalid JSON for document parsing');
   }
-
-  const costStructure = calculateCost(structureResponse.inputTokens, structureResponse.outputTokens);
-  await logCost(documentId, 'parsing-structure', 'claude-haiku-4.5', structureResponse.inputTokens, structureResponse.outputTokens, costStructure, false, Date.now() - startTime);
-
-  // Step 2: Get content for sections that have obligations (in batches)
-  const obligationSections = (structure.sections || []).filter((s: any) => s.has_obligations);
-  const batchSize = 10;
-  const fullSections: ParsedSection[] = [];
-
-  for (let i = 0; i < obligationSections.length; i += batchSize) {
-    const batch = obligationSections.slice(i, i + batchSize);
-    const sectionList = batch.map((s: any) => `Section ${s.section_number}: "${s.title}" (pages ${s.page_start}-${s.page_end})`).join('\n');
-
-    const contentResponse = await callClaude(
-      `Extract the FULL TEXT CONTENT for these specific sections from the PDF document.
-
-SECTIONS TO EXTRACT:
-${sectionList}
-
-RESPOND WITH ONLY VALID JSON - an array:
-[
-  {
-    "section_number": "1.1",
-    "content": "Full verbatim text of this section"
-  }
-]
-
-RULES:
-- Include the COMPLETE text of each section
-- Do not summarize - include all text verbatim
-- If a section is very long, include at minimum all sentences containing "must", "shall", "required", "obligated", "should", "may"
-
-RESPOND WITH ONLY THE JSON ARRAY.`,
-      pdfBase64,
-      16000
-    );
-
-    const costContent = calculateCost(contentResponse.inputTokens, contentResponse.outputTokens);
-    await logCost(documentId, 'parsing-content', 'claude-haiku-4.5', contentResponse.inputTokens, contentResponse.outputTokens, costContent, false, Date.now() - startTime);
-
-    let contents: any[];
-    try {
-      const repaired = repairJsonArray(contentResponse.text);
-      contents = JSON.parse(repaired);
-    } catch {
-      console.error('[Parser] Failed to parse content batch', i);
-      contents = [];
-    }
-
-    for (const sec of batch) {
-      const contentMatch = contents.find((c: any) => c.section_number === sec.section_number);
-      fullSections.push({
-        section_number: sec.section_number,
-        title: sec.title,
-        content: contentMatch?.content || '',
-        page_start: sec.page_start,
-        page_end: sec.page_end,
-        has_obligations: true,
-      });
-    }
-
-    // Rate limit pause between batches
-    if (i + batchSize < obligationSections.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-
-  // Add non-obligation sections without content
-  for (const sec of (structure.sections || [])) {
-    if (!sec.has_obligations) {
-      fullSections.push({
-        section_number: sec.section_number,
-        title: sec.title,
-        content: '',
-        page_start: sec.page_start,
-        page_end: sec.page_end,
-        has_obligations: false,
-      });
-    }
-  }
-
-  // Sort by section number
-  fullSections.sort((a, b) => a.section_number.localeCompare(b.section_number, undefined, { numeric: true }));
-
-  const parsed: ParsedDocument = {
-    title: structure.title,
-    document_type: structure.document_type,
-    effective_date: structure.effective_date,
-    version: structure.version,
-    total_pages: structure.total_pages,
-    sections: fullSections,
-  };
 
   // Cache
   await supabaseAdmin.from('processing_cache').insert({
@@ -186,10 +100,11 @@ RESPOND WITH ONLY THE JSON ARRAY.`,
     input_hash: documentId,
     output: parsed,
     model: 'claude-haiku-4.5',
-    tokens_used: 0,
-    cost: 0,
+    tokens_used: response.inputTokens + response.outputTokens,
+    cost,
   });
 
+  console.log(`[Parser] Found ${parsed.sections.length} sections, ${parsed.sections.filter(s => s.has_obligations).length} with obligations`);
   return parsed;
 }
 

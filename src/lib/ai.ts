@@ -7,7 +7,8 @@ const anthropic = new Anthropic({
 export async function callClaude(
   prompt: string,
   pdfBase64?: string,
-  maxTokens: number = 16000
+  maxTokens: number = 16000,
+  retries: number = 3
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const content: any[] = [];
 
@@ -24,48 +25,58 @@ export async function callClaude(
 
   content.push({ type: 'text', text: prompt });
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content }],
-  });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content }],
+      });
 
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map(block => block.text)
-    .join('');
+      const text = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+        .map(block => block.text)
+        .join('');
 
-  return {
-    text,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-  };
+      return {
+        text,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
+    } catch (error: any) {
+      const isRateLimit = error?.status === 429;
+      if (isRateLimit && attempt < retries) {
+        // Parse retry-after header or use default
+        const retryAfter = error?.headers?.get?.('retry-after');
+        const waitSeconds = retryAfter ? parseInt(retryAfter) + 5 : 65 * (attempt + 1);
+        console.log(`[AI] Rate limited. Waiting ${waitSeconds}s before retry ${attempt + 1}/${retries}`);
+        await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Max retries exceeded for AI call');
 }
 
-// Attempt to repair truncated JSON arrays
 export function repairJsonArray(text: string): string {
   let clean = text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
   
-  // If it already parses, return as-is
   try { JSON.parse(clean); return clean; } catch {}
 
-  // Try closing truncated array objects
-  // Find last complete object in array
   const lastCompleteObj = clean.lastIndexOf('},');
   if (lastCompleteObj > 0) {
     const repaired = clean.substring(0, lastCompleteObj + 1) + ']';
     try { JSON.parse(repaired); return repaired; } catch {}
   }
 
-  // Try closing with just }]
-  const lastOpenBrace = clean.lastIndexOf('{');
   const lastCloseBrace = clean.lastIndexOf('}');
-  if (lastCloseBrace > lastOpenBrace && lastCloseBrace > 0) {
+  if (lastCloseBrace > 0) {
     const repaired = clean.substring(0, lastCloseBrace + 1) + ']';
     try { JSON.parse(repaired); return repaired; } catch {}
   }
 
-  // Last resort: find all complete objects
   const objects: string[] = [];
   let depth = 0;
   let start = -1;
@@ -77,6 +88,16 @@ export function repairJsonArray(text: string): string {
     return '[' + objects.join(',') + ']';
   }
 
+  return clean;
+}
+
+export function repairJsonObject(text: string): string {
+  let clean = text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+  try { JSON.parse(clean); return clean; } catch {}
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { JSON.parse(match[0]); return match[0]; } catch {}
+  }
   return clean;
 }
 
