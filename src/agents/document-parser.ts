@@ -1,4 +1,4 @@
-import { callClaude, calculateCost, repairJsonArray, repairJsonObject } from '@/lib/ai';
+import { callClaudeWithRetry, calculateCost, repairJson } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface ParsedSection {
@@ -41,19 +41,16 @@ export async function parseDocument(
     return cached.output as ParsedDocument;
   }
 
-  // Single call: get structure + extract obligation text in one pass
-  // Ask Claude to only return the obligation-relevant sentences, not full content
-  const response = await callClaude(
+  const response = await callClaudeWithRetry(
     `You are a regulatory document parser for Australian energy sector documents (AEMO, AEMC, AER, ESB, ESC).
 
-Analyze this PDF and extract:
-1. Document metadata
-2. ALL sections with their obligation-relevant content
+Analyze this PDF and extract its structure with obligation-relevant content.
 
-RESPOND WITH ONLY VALID JSON:
+RESPOND WITH ONLY VALID JSON. No markdown fences, no explanation.
+
 {
   "title": "Full document title",
-  "document_type": "Procedure or Rule or Guideline",
+  "document_type": "Procedure or Rule or Guideline or Code",
   "effective_date": "YYYY-MM-DD or null",
   "version": "version string or null",
   "total_pages": 90,
@@ -61,7 +58,7 @@ RESPOND WITH ONLY VALID JSON:
     {
       "section_number": "1.1",
       "title": "Section title",
-      "content": "Only sentences containing obligations - those with must/shall/required/should/may/means/refers to. Include 1 sentence of context before each obligation.",
+      "content": "Extract obligation sentences and 1 line of context each",
       "page_start": 1,
       "page_end": 3,
       "has_obligations": true
@@ -70,13 +67,17 @@ RESPOND WITH ONLY VALID JSON:
 }
 
 CRITICAL RULES:
-- List ALL sections including appendices
-- For has_obligations=true sections: include ONLY sentences with obligation language (must, shall, required to, should, may, means, refers to) plus 1 sentence of context each
-- For has_obligations=false sections: set content to empty string ""
-- This keeps the response compact enough to fit
-- Preserve exact section numbering
+- List EVERY section in the document including appendices
+- For sections WITH obligations (has_obligations=true):
+  Extract ONLY sentences containing: must, shall, required to, obligated to, should, may, is to, means, refers to, is defined as.
+  Include 1 sentence of context before each obligation sentence.
+  Do NOT include full section text - just the obligation sentences with context.
+- For sections WITHOUT obligations (has_obligations=false):
+  Set content to "" (empty string)
+- This approach keeps the response compact
+- Preserve exact section numbering from the document
 
-RESPOND WITH ONLY THE JSON OBJECT. No markdown fences.`,
+RESPOND WITH ONLY THE JSON OBJECT.`,
     pdfBase64,
     32000
   );
@@ -86,14 +87,20 @@ RESPOND WITH ONLY THE JSON OBJECT. No markdown fences.`,
 
   let parsed: ParsedDocument;
   try {
-    const cleaned = repairJsonObject(response.text);
+    const cleaned = repairJson(response.text);
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    console.error('[Parser] Failed to parse. First 2000 chars:', response.text.substring(0, 2000));
+    console.error('[Parser] JSON parse failed. First 2000 chars:', response.text.substring(0, 2000));
+    console.error('[Parser] Last 500 chars:', response.text.substring(response.text.length - 500));
     throw new Error('AI returned invalid JSON for document parsing');
   }
 
-  // Cache
+  if (!parsed.sections || !Array.isArray(parsed.sections)) {
+    throw new Error('Parser returned no sections array');
+  }
+
+  console.log('[Parser] Found ' + parsed.sections.length + ' sections, ' + parsed.sections.filter(s => s.has_obligations).length + ' with obligations');
+
   await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
     operation: 'parsing',
@@ -104,7 +111,6 @@ RESPOND WITH ONLY THE JSON OBJECT. No markdown fences.`,
     cost,
   });
 
-  console.log(`[Parser] Found ${parsed.sections.length} sections, ${parsed.sections.filter(s => s.has_obligations).length} with obligations`);
   return parsed;
 }
 

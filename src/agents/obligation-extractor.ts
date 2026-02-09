@@ -1,4 +1,4 @@
-import { callClaude, calculateCost, repairJsonArray } from '@/lib/ai';
+import { callClaudeWithRetry, calculateCost, repairJson } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logCost } from './document-parser';
 
@@ -26,7 +26,9 @@ export async function extractObligations(
   documentId: string
 ): Promise<ExtractedObligation[]> {
   const allObligations: ExtractedObligation[] = [];
-  const relevantSections = sections.filter(s => s.has_obligations);
+  const relevantSections = sections.filter(s => s.has_obligations && s.content && s.content.trim().length > 0);
+
+  console.log('[Extractor] Processing ' + relevantSections.length + ' sections with obligations');
 
   for (const section of relevantSections) {
     const startTime = Date.now();
@@ -48,62 +50,59 @@ export async function extractObligations(
       continue;
     }
 
-    // Split large sections into chunks to avoid token limits
     const chunks = splitContent(section.content, 3000);
     const sectionObligations: ExtractedObligation[] = [];
 
     for (const chunk of chunks) {
-      const response = await callClaude(
-        `You are an Australian energy regulation expert. Extract ALL obligations from this document section.
+      const response = await callClaudeWithRetry(
+        `You are an Australian energy regulation expert. Extract ALL obligations from this section text.
 
 SECTION ${section.section_number}: ${section.title}
 ---
 ${chunk}
 ---
 
-RESPOND WITH ONLY VALID JSON - an array of obligations:
+RESPOND WITH ONLY A VALID JSON ARRAY. No markdown, no explanation.
+
 [
   {
-    "extracted_text": "The exact obligation text",
-    "context": "1-2 surrounding sentences for context",
+    "extracted_text": "The exact obligation sentence (max 2 sentences)",
+    "context": "1 sentence of surrounding context",
     "section_number": "${section.section_number}",
     "page_number": ${section.page_start},
-    "keywords": ["must", "shall"],
+    "keywords": ["must"],
     "obligation_type": "binding",
     "confidence": 0.95
   }
 ]
 
-CLASSIFICATION RULES:
-- "binding": Contains "must", "shall", "is required to", "is obligated to"
-- "guidance": Contains "should", "may", "is recommended"
-- "definition": Defines a term ("means", "refers to", "is defined as")
-- "example": Illustrative content
+CLASSIFICATION:
+- "binding": must, shall, is required to, is obligated to
+- "guidance": should, may, is recommended
+- "definition": means, refers to, is defined as
+- "example": illustrative content
 
-CONFIDENCE: 0.9-1.0 for clear "must/shall", 0.7-0.89 for likely, 0.5-0.69 for ambiguous.
+If NO obligations, return: []
 
-If NO obligations found, return: []
-
-IMPORTANT: Keep your response concise. For extracted_text, use the key sentence only (max 2 sentences). For context, use 1 sentence.
-
-RESPOND WITH ONLY THE JSON ARRAY.`
+RESPOND WITH ONLY THE JSON ARRAY.`,
+        undefined,
+        8000
       );
 
-      let obligations: ExtractedObligation[];
       try {
-        const repaired = repairJsonArray(response.text);
-        obligations = JSON.parse(repaired);
+        const repaired = repairJson(response.text);
+        const obligations = JSON.parse(repaired);
+        if (Array.isArray(obligations)) {
+          sectionObligations.push(...obligations);
+        }
       } catch {
-        console.error(`[Extractor] Failed to parse for section ${section.section_number}, chunk. Attempting line-by-line repair.`);
-        obligations = [];
+        console.error('[Extractor] JSON parse failed for section ' + section.section_number);
       }
 
       const cost = calculateCost(response.inputTokens, response.outputTokens);
       await logCost(documentId, 'extraction', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
-      sectionObligations.push(...obligations);
     }
 
-    // Cache all obligations for this section
     await supabaseAdmin.from('processing_cache').insert({
       cache_key: cacheKey,
       operation: 'extraction',
@@ -115,18 +114,19 @@ RESPOND WITH ONLY THE JSON ARRAY.`
     });
 
     allObligations.push(...sectionObligations);
+    await new Promise(resolve => setTimeout(resolve, 300));
   }
 
-  return deduplicateObligations(allObligations);
+  const deduped = deduplicateObligations(allObligations);
+  console.log('[Extractor] ' + allObligations.length + ' raw -> ' + deduped.length + ' after dedup');
+  return deduped;
 }
 
 function splitContent(content: string, maxChars: number): string[] {
   if (content.length <= maxChars) return [content];
-  
   const chunks: string[] = [];
   const paragraphs = content.split(/\n\n+/);
   let current = '';
-
   for (const para of paragraphs) {
     if (current.length + para.length > maxChars && current.length > 0) {
       chunks.push(current.trim());
@@ -147,7 +147,7 @@ function deduplicateObligations(obligations: ExtractedObligation[]): ExtractedOb
       const wordsB = new Set(ob.extracted_text.toLowerCase().split(/\s+/));
       const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
       const union = new Set([...wordsA, ...wordsB]);
-      return intersection.size / union.size > 0.9;
+      return intersection.size / union.size > 0.85;
     });
     if (!isDupe) unique.push(ob);
   }
