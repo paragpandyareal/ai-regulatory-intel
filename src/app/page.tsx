@@ -41,10 +41,11 @@ export default function Home() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected && selected.type === 'application/pdf') {
+    if (selected && (selected.type === 'application/pdf' || selected.name.toLowerCase().endsWith('.pdf'))) {
       setFile(selected);
       setError(null);
-    } else {
+      setStage('idle');
+    } else if (selected) {
       setError('Please select a PDF file');
     }
   };
