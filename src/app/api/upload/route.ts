@@ -10,12 +10,24 @@ export async function POST(request: NextRequest) {
     const source = formData.get('source') as string || 'AEMO';
     const documentType = formData.get('documentType') as string || 'Procedure';
 
-    if (!file || !file.name.endsWith('.pdf')) {
+    if (!file || !(file.name.toLowerCase().endsWith('.pdf'))) {
       return NextResponse.json({ error: 'Please upload a PDF file' }, { status: 400 });
     }
 
     if (file.size > 50 * 1024 * 1024) {
       return NextResponse.json({ error: 'File must be under 50MB' }, { status: 400 });
+    }
+
+    // Check env vars
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ 
+        error: 'Server configuration error: missing Supabase credentials',
+        debug: {
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        }
+      }, { status: 500 });
     }
 
     // Generate SHA-256 hash for deduplication
@@ -24,7 +36,7 @@ export async function POST(request: NextRequest) {
     const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
 
     // Check for duplicate
-    const { data: existing } = await supabaseAdmin
+    const { data: existing, error: findError } = await supabaseAdmin
       .from('documents')
       .select('id, title, extraction_status')
       .eq('file_hash', fileHash)
@@ -38,9 +50,6 @@ export async function POST(request: NextRequest) {
       }, { status: 200 });
     }
 
-    // Store PDF as base64 in a simple approach (swap to Vercel Blob later)
-    const base64Pdf = buffer.toString('base64');
-
     // Create document record
     const { data: document, error } = await supabaseAdmin
       .from('documents')
@@ -49,15 +58,23 @@ export async function POST(request: NextRequest) {
         source,
         document_type: documentType,
         file_hash: fileHash,
-        file_url: `data:application/pdf;base64,${base64Pdf.substring(0, 50)}...`, // Store reference, not full base64
+        file_url: `pdf_${fileHash.substring(0, 12)}`,
         extraction_status: 'pending',
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Supabase insert error:', error);
-      return NextResponse.json({ error: 'Failed to save document' }, { status: 500 });
+      console.error('Supabase insert error:', JSON.stringify(error));
+      return NextResponse.json({ 
+        error: 'Failed to save document',
+        debug: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        }
+      }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -66,8 +83,10 @@ export async function POST(request: NextRequest) {
       duplicate: false,
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Upload failed: ' + (error.message || 'Unknown error'),
+    }, { status: 500 });
   }
 }
