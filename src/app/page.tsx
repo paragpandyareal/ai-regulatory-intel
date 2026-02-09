@@ -3,17 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign } from 'lucide-react';
-
-interface DocumentResult {
-  id: string;
-  title: string;
-  extraction_status: string;
-  total_obligations: number;
-  processing_cost: number;
-}
 
 interface Obligation {
   id: string;
@@ -34,10 +25,10 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<ProcessingStage>('idle');
   const [progress, setProgress] = useState(0);
-  const [document, setDocument] = useState<DocumentResult | null>(null);
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [processingCost, setProcessingCost] = useState<number>(0);
+  const [documentId, setDocumentId] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -45,6 +36,7 @@ export default function Home() {
       setFile(selected);
       setError(null);
       setStage('idle');
+      setObligations([]);
     } else if (selected) {
       setError('Please select a PDF file');
     }
@@ -55,10 +47,11 @@ export default function Home() {
 
     try {
       setError(null);
+      setObligations([]);
       setStage('uploading');
       setProgress(10);
 
-      // Step 1: Upload
+      // Step 1: Upload — server converts to base64
       const formData = new FormData();
       formData.append('file', file);
       formData.append('title', file.name.replace('.pdf', ''));
@@ -70,32 +63,26 @@ export default function Home() {
 
       if (!uploadRes.ok) throw new Error(uploadData.error);
 
+      setDocumentId(uploadData.document.id);
+
       if (uploadData.duplicate) {
-        setDocument(uploadData.document);
         setStage('complete');
         setProgress(100);
-        // Fetch existing obligations
         await fetchObligations(uploadData.document.id);
         return;
       }
 
-      setDocument(uploadData.document);
       setProgress(25);
       setStage('parsing');
 
-      // Step 2: Convert file to base64 and process
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
-
-      setProgress(40);
-      setStage('extracting');
-
+      // Step 2: Process — send the base64 from server response
       const processRes = await fetch('/api/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: uploadData.document.id, pdfBase64: base64 }),
+        body: JSON.stringify({
+          documentId: uploadData.document.id,
+          pdfBase64: uploadData.pdfBase64,
+        }),
       });
 
       setProgress(80);
@@ -103,13 +90,12 @@ export default function Home() {
 
       const processData = await processRes.json();
 
-      if (!processRes.ok) throw new Error(processData.error);
+      if (!processRes.ok) throw new Error(processData.error || 'Processing failed');
 
       setProcessingCost(processData.cost || 0);
       setProgress(100);
       setStage('complete');
 
-      // Fetch the obligations
       await fetchObligations(uploadData.document.id);
 
     } catch (err: any) {
@@ -123,7 +109,6 @@ export default function Home() {
     if (res.ok) {
       const data = await res.json();
       setObligations(data.obligations || []);
-      setDocument(prev => prev ? { ...prev, total_obligations: data.obligations?.length || 0, extraction_status: 'completed' } : null);
     }
   };
 
@@ -205,7 +190,6 @@ export default function Home() {
               </Button>
             </div>
 
-            {/* Processing Status */}
             {stage !== 'idle' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -239,7 +223,7 @@ export default function Home() {
         </Card>
 
         {/* Results Summary */}
-        {document && stage === 'complete' && (
+        {stage === 'complete' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -287,7 +271,6 @@ export default function Home() {
               <div className="space-y-4">
                 {obligations.map((ob) => (
                   <div key={ob.id} className="border rounded-lg p-4 space-y-3 hover:shadow-sm transition-shadow">
-                    {/* Header row */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${typeBadgeColor(ob.obligation_type)}`}>
@@ -310,13 +293,9 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Obligation text */}
                     <p className="text-sm text-gray-800">{ob.extracted_text}</p>
-
-                    {/* Section reference */}
                     <p className="text-xs text-gray-400">Section {ob.section_number}</p>
 
-                    {/* Tags */}
                     <div className="flex flex-wrap gap-1.5">
                       {ob.stakeholders?.map((s, i) => (
                         <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
@@ -330,7 +309,6 @@ export default function Home() {
                       ))}
                     </div>
 
-                    {/* Reasoning (collapsible would be nice but keeping simple) */}
                     {ob.classification_reasoning && (
                       <p className="text-xs text-gray-500 italic">
                         AI reasoning: {ob.classification_reasoning}

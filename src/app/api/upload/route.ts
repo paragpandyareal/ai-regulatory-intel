@@ -18,25 +18,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be under 50MB' }, { status: 400 });
     }
 
-    // Check env vars
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ 
-        error: 'Server configuration error: missing Supabase credentials',
-        debug: {
-          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-          hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-          hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        }
-      }, { status: 500 });
-    }
-
-    // Generate SHA-256 hash for deduplication
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const pdfBase64 = buffer.toString('base64');
 
     // Check for duplicate
-    const { data: existing, error: findError } = await supabaseAdmin
+    const { data: existing } = await supabaseAdmin
       .from('documents')
       .select('id, title, extraction_status')
       .eq('file_hash', fileHash)
@@ -58,7 +46,7 @@ export async function POST(request: NextRequest) {
         source,
         document_type: documentType,
         file_hash: fileHash,
-        file_url: `pdf_${fileHash.substring(0, 12)}`,
+        file_url: `hash:${fileHash}`,
         extraction_status: 'pending',
       })
       .select()
@@ -66,27 +54,18 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Supabase insert error:', JSON.stringify(error));
-      return NextResponse.json({ 
-        error: 'Failed to save document',
-        debug: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        }
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to save document' }, { status: 500 });
     }
 
     return NextResponse.json({
       message: 'Document uploaded successfully',
       document,
+      pdfBase64,
       duplicate: false,
     }, { status: 201 });
 
   } catch (error: any) {
     console.error('Upload error:', error);
-    return NextResponse.json({ 
-      error: 'Upload failed: ' + (error.message || 'Unknown error'),
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Upload failed: ' + error.message }, { status: 500 });
   }
 }
