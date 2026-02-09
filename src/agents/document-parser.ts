@@ -1,4 +1,4 @@
-import { callClaude, calculateCost } from '@/lib/ai';
+import { callClaude, calculateCost, repairJsonArray } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface ParsedSection {
@@ -41,75 +41,155 @@ export async function parseDocument(
     return cached.output as ParsedDocument;
   }
 
-  const response = await callClaude(
-    `You are a regulatory document parser specializing in Australian energy sector documents (AEMO, AEMC, AER).
+  // Step 1: Get document structure (sections list only - no content)
+  const structureResponse = await callClaude(
+    `You are a regulatory document parser for Australian energy sector documents.
 
-Analyze this PDF and extract its structure into JSON format.
+Analyze this PDF and list ALL sections with their metadata. Do NOT include section content text.
 
-You MUST respond with ONLY a valid JSON object. No markdown, no code fences, no explanation.
-
-The JSON must match this schema:
+RESPOND WITH ONLY VALID JSON:
 {
   "title": "Full document title",
   "document_type": "Procedure",
   "effective_date": "YYYY-MM-DD or null",
   "version": "version string or null",
-  "total_pages": 5,
+  "total_pages": 90,
   "sections": [
     {
       "section_number": "1.1",
       "title": "Section title",
-      "content": "Full text content of this section",
       "page_start": 1,
-      "page_end": 1,
+      "page_end": 3,
       "has_obligations": true
     }
   ]
 }
 
 RULES:
-- Extract ALL sections including appendices
-- Preserve exact section numbering
-- Set has_obligations to true if section contains "must", "shall", "required to", "obligated to"
-- Include complete text content per section
-- Do NOT skip or summarize content
+- List ALL sections including appendices
+- Preserve exact section numbering from the document
+- Set has_obligations to true if section contains "must", "shall", "required to", "obligated to", "is to"
+- Do NOT include content field yet
+- Keep response compact
 
 RESPOND WITH ONLY THE JSON OBJECT.`,
-    pdfBase64
+    pdfBase64,
+    8000
   );
 
-  const responseText = response.text.trim();
-  let parsed: ParsedDocument;
+  let structure: any;
   try {
-    parsed = JSON.parse(responseText);
-  } catch {
+    const cleaned = structureResponse.text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    structure = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+  } catch (e) {
+    console.error('[Parser] Failed to parse structure:', structureResponse.text.substring(0, 1000));
+    throw new Error('AI returned invalid JSON for document structure');
+  }
+
+  const costStructure = calculateCost(structureResponse.inputTokens, structureResponse.outputTokens);
+  await logCost(documentId, 'parsing-structure', 'claude-haiku-4.5', structureResponse.inputTokens, structureResponse.outputTokens, costStructure, false, Date.now() - startTime);
+
+  // Step 2: Get content for sections that have obligations (in batches)
+  const obligationSections = (structure.sections || []).filter((s: any) => s.has_obligations);
+  const batchSize = 10;
+  const fullSections: ParsedSection[] = [];
+
+  for (let i = 0; i < obligationSections.length; i += batchSize) {
+    const batch = obligationSections.slice(i, i + batchSize);
+    const sectionList = batch.map((s: any) => `Section ${s.section_number}: "${s.title}" (pages ${s.page_start}-${s.page_end})`).join('\n');
+
+    const contentResponse = await callClaude(
+      `Extract the FULL TEXT CONTENT for these specific sections from the PDF document.
+
+SECTIONS TO EXTRACT:
+${sectionList}
+
+RESPOND WITH ONLY VALID JSON - an array:
+[
+  {
+    "section_number": "1.1",
+    "content": "Full verbatim text of this section"
+  }
+]
+
+RULES:
+- Include the COMPLETE text of each section
+- Do not summarize - include all text verbatim
+- If a section is very long, include at minimum all sentences containing "must", "shall", "required", "obligated", "should", "may"
+
+RESPOND WITH ONLY THE JSON ARRAY.`,
+      pdfBase64,
+      16000
+    );
+
+    const costContent = calculateCost(contentResponse.inputTokens, contentResponse.outputTokens);
+    await logCost(documentId, 'parsing-content', 'claude-haiku-4.5', contentResponse.inputTokens, contentResponse.outputTokens, costContent, false, Date.now() - startTime);
+
+    let contents: any[];
     try {
-      const clean = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      parsed = JSON.parse(clean);
+      const repaired = repairJsonArray(contentResponse.text);
+      contents = JSON.parse(repaired);
     } catch {
-      const match = responseText.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
-      } else {
-        console.error('[Parser] Failed. Response:', responseText.substring(0, 1000));
-        throw new Error('AI returned invalid JSON for document parsing');
-      }
+      console.error('[Parser] Failed to parse content batch', i);
+      contents = [];
+    }
+
+    for (const sec of batch) {
+      const contentMatch = contents.find((c: any) => c.section_number === sec.section_number);
+      fullSections.push({
+        section_number: sec.section_number,
+        title: sec.title,
+        content: contentMatch?.content || '',
+        page_start: sec.page_start,
+        page_end: sec.page_end,
+        has_obligations: true,
+      });
+    }
+
+    // Rate limit pause between batches
+    if (i + batchSize < obligationSections.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 
-  const cost = calculateCost(response.inputTokens, response.outputTokens);
+  // Add non-obligation sections without content
+  for (const sec of (structure.sections || [])) {
+    if (!sec.has_obligations) {
+      fullSections.push({
+        section_number: sec.section_number,
+        title: sec.title,
+        content: '',
+        page_start: sec.page_start,
+        page_end: sec.page_end,
+        has_obligations: false,
+      });
+    }
+  }
 
+  // Sort by section number
+  fullSections.sort((a, b) => a.section_number.localeCompare(b.section_number, undefined, { numeric: true }));
+
+  const parsed: ParsedDocument = {
+    title: structure.title,
+    document_type: structure.document_type,
+    effective_date: structure.effective_date,
+    version: structure.version,
+    total_pages: structure.total_pages,
+    sections: fullSections,
+  };
+
+  // Cache
   await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
     operation: 'parsing',
     input_hash: documentId,
     output: parsed,
     model: 'claude-haiku-4.5',
-    tokens_used: response.inputTokens + response.outputTokens,
-    cost,
+    tokens_used: 0,
+    cost: 0,
   });
 
-  await logCost(documentId, 'parsing', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
   return parsed;
 }
 
