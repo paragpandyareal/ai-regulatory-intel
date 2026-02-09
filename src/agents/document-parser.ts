@@ -113,13 +113,13 @@ RESPOND WITH ONLY THE JSON OBJECT. No markdown, no code fences, no explanation.`
     operation: 'parsing',
     input_hash: documentId,
     output: parsed,
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.0-flash',
     tokens_used: inputTokens + outputTokens,
     cost,
   });
 
   // Log cost
-  await logCost(documentId, 'parsing', 'gemini-1.5-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
+  await logCost(documentId, 'parsing', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
 
   return parsed;
 }

@@ -70,7 +70,7 @@ RESPOND WITH ONLY THE JSON OBJECT.`,
   const outputTokens = usage?.candidatesTokenCount || 0;
   const cost = calculateGeminiCost(inputTokens, outputTokens);
 
-  await logCost(documentId, 'classification', 'gemini-1.5-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
+  await logCost(documentId, 'classification', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
 
   const responseText = result.response.text().trim();
   const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -130,7 +130,7 @@ RESPOND WITH ONLY THE JSON OBJECT.`,
   const outputTokens = usage?.candidatesTokenCount || 0;
   const cost = calculateGeminiCost(inputTokens, outputTokens);
 
-  await logCost(documentId, 'classification', 'gemini-1.5-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
+  await logCost(documentId, 'classification', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
 
   const responseText = result.response.text().trim();
   const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -189,7 +189,7 @@ RESPOND WITH ONLY THE JSON OBJECT.`,
   const outputTokens = usage?.candidatesTokenCount || 0;
   const cost = calculateGeminiCost(inputTokens, outputTokens);
 
-  await logCost(documentId, 'classification', 'gemini-1.5-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
+  await logCost(documentId, 'classification', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
 
   const responseText = result.response.text().trim();
   const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

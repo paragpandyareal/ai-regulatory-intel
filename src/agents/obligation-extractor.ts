@@ -116,12 +116,12 @@ RESPOND WITH ONLY THE JSON ARRAY. No markdown, no code fences, no explanation.`,
       operation: 'extraction',
       input_hash: `${documentId}_${section.section_number}`,
       output: obligations,
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       tokens_used: inputTokens + outputTokens,
       cost,
     });
 
-    await logCost(documentId, 'extraction', 'gemini-1.5-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
+    await logCost(documentId, 'extraction', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
 
     allObligations.push(...obligations);
   }
