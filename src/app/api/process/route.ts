@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runPipeline } from '@/agents/pipeline';
+import { processDocument } from '@/agents/pipeline';
 
 export const maxDuration = 300;
 
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing documentId or pdfBase64' }, { status: 400 });
     }
 
-    const result = await runPipeline(documentId, pdfBase64);
+    const result = await processDocument(documentId, pdfBase64);
 
     return NextResponse.json({
       message: 'Processing complete',
