@@ -1,4 +1,4 @@
-import { geminiFlash } from '@/lib/gemini';
+import { callClaude, calculateCost } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface ParsedSection {
@@ -25,7 +25,6 @@ export async function parseDocument(
 ): Promise<ParsedDocument> {
   const startTime = Date.now();
 
-  // Check cache first
   const cacheKey = `parse_${documentId}`;
   const { data: cached } = await supabaseAdmin
     .from('processing_cache')
@@ -42,23 +41,12 @@ export async function parseDocument(
     return cached.output as ParsedDocument;
   }
 
-  // Call Gemini with the PDF
-  const result = await geminiFlash.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [
-        {
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: pdfBase64,
-          },
-        },
-        {
-          text: `You are a regulatory document parser specializing in Australian energy sector documents (AEMO, AEMC, AER).
+  const response = await callClaude(
+    `You are a regulatory document parser specializing in Australian energy sector documents (AEMO, AEMC, AER).
 
 Analyze this PDF and extract its structure into JSON format.
 
-You MUST respond with ONLY a valid JSON object. No markdown, no code fences, no explanation before or after.
+You MUST respond with ONLY a valid JSON object. No markdown, no code fences, no explanation.
 
 The JSON must match this schema:
 {
@@ -82,75 +70,47 @@ The JSON must match this schema:
 RULES:
 - Extract ALL sections including appendices
 - Preserve exact section numbering
-- Set has_obligations to true if section contains "must", "shall", "required to", "obligated to", "is to"
+- Set has_obligations to true if section contains "must", "shall", "required to", "obligated to"
 - Include complete text content per section
 - Do NOT skip or summarize content
 
 RESPOND WITH ONLY THE JSON OBJECT.`,
-        },
-      ],
-    }],
-  });
+    pdfBase64
+  );
 
-  const responseText = result.response.text().trim();
-  console.log('[Parser] Raw response length:', responseText.length);
-  console.log('[Parser] First 500 chars:', responseText.substring(0, 500));
-
+  const responseText = response.text.trim();
   let parsed: ParsedDocument;
   try {
-    // Try direct parse first
     parsed = JSON.parse(responseText);
-  } catch (e1) {
+  } catch {
     try {
-      // Try removing markdown fences
-      const cleanJson = responseText
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-      parsed = JSON.parse(cleanJson);
-    } catch (e2) {
-      // Try extracting JSON from the response
-      try {
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        } else {
-          console.error('[Parser] Failed to parse. Full response:', responseText.substring(0, 2000));
-          throw new Error('AI returned invalid JSON for document parsing');
-        }
-      } catch (e3) {
-        console.error('[Parser] All parse attempts failed. Response:', responseText.substring(0, 2000));
+      const clean = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      const match = responseText.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      } else {
+        console.error('[Parser] Failed. Response:', responseText.substring(0, 1000));
         throw new Error('AI returned invalid JSON for document parsing');
       }
     }
   }
 
-  const usage = result.response.usageMetadata;
-  const inputTokens = usage?.promptTokenCount || 0;
-  const outputTokens = usage?.candidatesTokenCount || 0;
-  const cost = calculateGeminiCost(inputTokens, outputTokens);
+  const cost = calculateCost(response.inputTokens, response.outputTokens);
 
-  // Cache the result
   await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
     operation: 'parsing',
     input_hash: documentId,
     output: parsed,
-    model: 'gemini-2.0-flash',
-    tokens_used: inputTokens + outputTokens,
+    model: 'claude-haiku-4.5',
+    tokens_used: response.inputTokens + response.outputTokens,
     cost,
   });
 
-  await logCost(documentId, 'parsing', 'gemini-2.0-flash', inputTokens, outputTokens, cost, false, Date.now() - startTime);
-
+  await logCost(documentId, 'parsing', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
   return parsed;
-}
-
-function calculateGeminiCost(inputTokens: number, outputTokens: number): number {
-  const inputCost = (inputTokens / 1_000_000) * 0.075;
-  const outputCost = (outputTokens / 1_000_000) * 0.30;
-  return inputCost + outputCost;
 }
 
 async function logCost(
@@ -175,4 +135,4 @@ async function logCost(
   });
 }
 
-export { calculateGeminiCost, logCost };
+export { calculateCost, logCost };
