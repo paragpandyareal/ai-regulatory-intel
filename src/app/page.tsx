@@ -48,7 +48,7 @@ export default function Home() {
     }
   };
 
-  const handleUpload = async () => {
+  const handleUpload = async (forceReprocess = false) => {
     if (!file) return;
 
     try {
@@ -56,6 +56,8 @@ export default function Home() {
       setObligations([]);
       setStage('uploading');
       setProgress(10);
+      setRtmCost(null);
+      setFuncSpecCost(null);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -70,7 +72,16 @@ export default function Home() {
 
       setDocumentId(uploadData.document.id);
 
-      if (uploadData.duplicate) {
+      // If forcing reprocess, clear cache first
+      if (forceReprocess && uploadData.document.id) {
+        await fetch('/api/clear-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: uploadData.document.id }),
+        });
+      }
+
+      if (uploadData.duplicate && !forceReprocess) {
         setStage('complete');
         setProgress(100);
         await fetchObligations(uploadData.document.id);
@@ -256,7 +267,7 @@ export default function Home() {
                 disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
               />
               <Button
-                onClick={handleUpload}
+                onClick={() => handleUpload(false)}
                 disabled={!file || (stage !== 'idle' && stage !== 'complete' && stage !== 'error')}
                 className="bg-[#7B9B7B] hover:bg-[#6B8B6B] text-white rounded-2xl px-6 shadow-sm"
               >
@@ -338,10 +349,22 @@ export default function Home() {
 
             <Card className="border-[#C5D5C5] shadow-sm rounded-3xl bg-gradient-to-br from-[#F0F5F0] to-[#F8FAF8]">
               <CardHeader>
-                <CardTitle className="text-lg text-neutral-800">Generate Compliance Documents</CardTitle>
-                <CardDescription className="text-neutral-600">
-                  Convert extracted obligations into professional Word deliverables
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg text-neutral-800">Generate Compliance Documents</CardTitle>
+                    <CardDescription className="text-neutral-600">
+                      Convert extracted obligations into professional Word deliverables
+                    </CardDescription>
+                  </div>
+                  <button
+                    onClick={() => handleUpload(true)}
+                    disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
+                    className="text-[#7B9B7B] hover:text-[#6B8B6B] flex items-center gap-1 text-sm font-medium disabled:opacity-50"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Reprocess PDF
+                  </button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
