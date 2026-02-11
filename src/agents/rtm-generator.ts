@@ -14,6 +14,29 @@ export async function generateRTM(
 ): Promise<RTMGenerationResult> {
   const startTime = Date.now();
   
+  // Check cache first
+  const cacheKey = `docgen_rtm_${documentId}`;
+  const { data: cached } = await supabaseAdmin
+    .from('processing_cache')
+    .select('output, id, hit_count')
+    .eq('cache_key', cacheKey)
+    .single();
+
+  if (cached?.output) {
+    console.log('[RTM Generator] Cache hit - using cached JSON data');
+    await supabaseAdmin
+      .from('processing_cache')
+      .update({ hit_count: cached.hit_count + 1 })
+      .eq('id', cached.id);
+    
+    await logCost(documentId, 'rtm_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
+    
+    // Regenerate document from cached JSON (fast, no API cost)
+    const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
+    const buffer = await createRTMDocument(cached.output, doc);
+    return { docxBuffer: buffer, cost: 0 };
+  }
+  
   const { data: doc } = await supabaseAdmin
     .from('documents')
     .select('*')
@@ -119,6 +142,28 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     throw new Error('AI returned invalid JSON for RTM generation');
   }
 
+  // Cache using 'extraction' as operation type (allowed by DB constraint)
+  const { error: cacheError } = await supabaseAdmin.from('processing_cache').insert({
+    cache_key: cacheKey,
+    operation: 'extraction', // Use allowed operation type
+    input_hash: documentId,
+    output: rtmData,
+    model: 'claude-sonnet-4-20250514',
+    tokens_used: response.inputTokens + response.outputTokens,
+    cost,
+  });
+
+  if (cacheError) {
+    console.error('[RTM Generator] Cache insert error:', cacheError);
+  } else {
+    console.log('[RTM Generator] Successfully cached document data');
+  }
+
+  const buffer = await createRTMDocument(rtmData, doc);
+  return { docxBuffer: buffer, cost };
+}
+
+async function createRTMDocument(rtmData: any, doc: any): Promise<Buffer> {
   const doc1 = rtmData.tab1_documentControl;
   const doc2 = rtmData.tab2_interpretation || [];
   const doc3 = rtmData.tab3_requirements || [];
@@ -144,7 +189,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           spacing: { after: 400 },
         }),
         
-        // TAB 1
         new Paragraph({
           text: 'TAB 1: DOCUMENT CONTROL',
           heading: HeadingLevel.HEADING_2,
@@ -165,7 +209,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [30, 70]
         ),
         
-        // TAB 2
         new Paragraph({
           text: 'TAB 2: INTERPRETATION & SCOPE ASSESSMENT',
           heading: HeadingLevel.HEADING_2,
@@ -189,7 +232,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [8, 12, 8, 8, 15, 15, 10, 10, 5, 9]
         ),
         
-        // TAB 3
         new Paragraph({
           text: 'TAB 3: SYSTEM REQUIREMENTS (OUTCOME-FOCUSED)',
           heading: HeadingLevel.HEADING_2,
@@ -211,7 +253,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [10, 10, 10, 18, 18, 15, 14, 5]
         ),
         
-        // TAB 4
         new Paragraph({
           text: 'TAB 4: ASSUMPTIONS, DEPENDENCIES & RISKS',
           heading: HeadingLevel.HEADING_2,
@@ -236,8 +277,7 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     }],
   });
 
-  const buffer = await Packer.toBuffer(wordDoc);
-  return { docxBuffer: buffer, cost };
+  return await Packer.toBuffer(wordDoc);
 }
 
 function createBetterTable(headers: string[], rows: string[][], columnWidths: number[]): Table {

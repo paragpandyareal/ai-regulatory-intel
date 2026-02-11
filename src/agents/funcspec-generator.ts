@@ -14,6 +14,29 @@ export async function generateFunctionalSpec(
 ): Promise<FuncSpecResult> {
   const startTime = Date.now();
   
+  // Check cache first
+  const cacheKey = `docgen_funcspec_${documentId}`;
+  const { data: cached } = await supabaseAdmin
+    .from('processing_cache')
+    .select('output, id, hit_count')
+    .eq('cache_key', cacheKey)
+    .single();
+
+  if (cached?.output) {
+    console.log('[FuncSpec Generator] Cache hit - using cached JSON data');
+    await supabaseAdmin
+      .from('processing_cache')
+      .update({ hit_count: cached.hit_count + 1 })
+      .eq('id', cached.id);
+    
+    await logCost(documentId, 'funcspec_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
+    
+    // Regenerate document from cached JSON (fast, no API cost)
+    const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
+    const buffer = await createFuncSpecDocument(cached.output, doc);
+    return { docxBuffer: buffer, cost: 0 };
+  }
+
   const { data: doc } = await supabaseAdmin
     .from('documents')
     .select('*')
@@ -134,13 +157,34 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     throw new Error('AI returned invalid JSON for Functional Spec generation');
   }
 
-  // Create Word document with better formatting
+  // Cache using 'extraction' as operation type (allowed by DB constraint)
+  const { error: cacheError } = await supabaseAdmin.from('processing_cache').insert({
+    cache_key: cacheKey,
+    operation: 'extraction', // Use allowed operation type
+    input_hash: documentId,
+    output: specData,
+    model: 'claude-sonnet-4-20250514',
+    tokens_used: response.inputTokens + response.outputTokens,
+    cost,
+  });
+
+  if (cacheError) {
+    console.error('[FuncSpec Generator] Cache insert error:', cacheError);
+  } else {
+    console.log('[FuncSpec Generator] Successfully cached document data');
+  }
+
+  const buffer = await createFuncSpecDocument(specData, doc);
+  return { docxBuffer: buffer, cost };
+}
+
+async function createFuncSpecDocument(specData: any, doc: any): Promise<Buffer> {
   const wordDoc = new Document({
     sections: [{
       properties: {
         page: {
           margin: {
-            top: 1440, // 1 inch
+            top: 1440,
             right: 1440,
             bottom: 1440,
             left: 1440,
@@ -148,7 +192,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
         },
       },
       children: [
-        // Title
         new Paragraph({
           text: 'FUNCTIONAL SPECIFICATION',
           heading: HeadingLevel.HEADING_1,
@@ -161,7 +204,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           spacing: { after: 400 },
         }),
         
-        // 1. Initiative Overview
         new Paragraph({ text: '1. INITIATIVE OVERVIEW', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         new Paragraph({ 
           text: `Regulatory Driver: ${specData.initiativeOverview?.regulatoryDriver || 'Not specified'}`,
@@ -180,7 +222,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           spacing: { after: 300 }
         }),
         
-        // 2. Regulatory Source Register
         new Paragraph({ text: '2. REGULATORY SOURCE REGISTER', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
           ['Source', 'Clause', 'Obligation Summary', 'Confidence'],
@@ -193,7 +234,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [20, 15, 50, 15]
         ),
         
-        // 3. Problem Statement
         new Paragraph({ text: '3. PROBLEM STATEMENT', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         new Paragraph({ 
           children: [
@@ -217,7 +257,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           spacing: { after: 300 }
         }),
         
-        // 4. Functional Scope
         new Paragraph({ text: '4. FUNCTIONAL SCOPE', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         new Paragraph({ text: 'In Scope:', heading: HeadingLevel.HEADING_3, spacing: { after: 120 } }),
         ...(specData.functionalScope?.inScope || []).map((item: string) => 
@@ -229,7 +268,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
         ),
         new Paragraph({ text: '', spacing: { after: 200 } }),
         
-        // 5. Functional Requirements
         new Paragraph({ text: '5. FUNCTIONAL REQUIREMENTS', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
           ['ID', 'Requirement', 'Classification', 'Source', 'Notes'],
@@ -243,7 +281,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [8, 42, 15, 15, 20]
         ),
         
-        // 6. Business Rules
         new Paragraph({ text: '6. BUSINESS RULES', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
           ['Rule ID', 'Rule', 'Source', 'Classification'],
@@ -256,7 +293,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [12, 53, 20, 15]
         ),
         
-        // 7. Data Requirements
         new Paragraph({ text: '7. DATA REQUIREMENTS', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
           ['Data Element', 'Mandatory', 'Source', 'Notes'],
@@ -269,7 +305,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [25, 12, 18, 45]
         ),
         
-        // 8. Risks & Ambiguities
         new Paragraph({ text: '8. RISKS & REGULATORY AMBIGUITIES', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         ...(specData.risksAndAmbiguities || []).map((r: any) => 
           new Paragraph({ 
@@ -279,7 +314,6 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
         ),
         new Paragraph({ text: '', spacing: { after: 200 } }),
         
-        // 9. Assumptions
         new Paragraph({ text: '9. ASSUMPTIONS REGISTER', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
           ['Assumption ID', 'Assumption', 'Impact', 'Validation Required'],
@@ -292,14 +326,12 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
           [15, 35, 25, 25]
         ),
         
-        // 10. Traceability
         new Paragraph({ text: '10. TRACEABILITY STATEMENT', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         new Paragraph({ 
           text: specData.traceabilityStatement || 'All functional requirements map back to regulatory obligations.',
           spacing: { after: 300 }
         }),
         
-        // 11. Complexity
         new Paragraph({ text: '11. IMPLEMENTATION COMPLEXITY INDICATOR', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         new Paragraph({ 
           children: [
@@ -318,15 +350,13 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     }],
   });
 
-  const buffer = await Packer.toBuffer(wordDoc);
-  return { docxBuffer: buffer, cost };
+  return await Packer.toBuffer(wordDoc);
 }
 
 function createBetterTable(headers: string[], rows: string[][], columnWidths: number[]): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
-      // Header row
       new TableRow({
         tableHeader: true,
         height: { value: 600, rule: 'atLeast' },
@@ -351,7 +381,6 @@ function createBetterTable(headers: string[], rows: string[][], columnWidths: nu
           })
         ),
       }),
-      // Data rows
       ...rows.map((row, rowIdx) => 
         new TableRow({
           height: { value: 400, rule: 'atLeast' },
