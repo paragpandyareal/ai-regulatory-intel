@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText } from 'lucide-react';
 
 interface Obligation {
   id: string;
@@ -29,6 +29,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [processingCost, setProcessingCost] = useState<number>(0);
   const [documentId, setDocumentId] = useState<string | null>(null);
+  const [generatingRTM, setGeneratingRTM] = useState(false);
+  const [generatingFuncSpec, setGeneratingFuncSpec] = useState(false);
+  const [rtmCost, setRtmCost] = useState<number | null>(null);
+  const [funcSpecCost, setFuncSpecCost] = useState<number | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -37,6 +41,8 @@ export default function Home() {
       setError(null);
       setStage('idle');
       setObligations([]);
+      setRtmCost(null);
+      setFuncSpecCost(null);
     } else if (selected) {
       setError('Please select a PDF file');
     }
@@ -51,7 +57,6 @@ export default function Home() {
       setStage('uploading');
       setProgress(10);
 
-      // Step 1: Upload — server converts to base64
       const formData = new FormData();
       formData.append('file', file);
       formData.append('title', file.name.replace('.pdf', ''));
@@ -75,7 +80,6 @@ export default function Home() {
       setProgress(25);
       setStage('parsing');
 
-      // Step 2: Process — send the base64 from server response
       const processRes = await fetch('/api/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,6 +115,80 @@ export default function Home() {
       setObligations(data.obligations || []);
     }
   };
+
+  const handleGenerateRTM = async () => {
+    if (!documentId) return;
+    
+    try {
+      setGeneratingRTM(true);
+      const res = await fetch('/api/generate-rtm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+
+      const cost = parseFloat(res.headers.get('X-Generation-Cost') || '0');
+      setRtmCost(cost);
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'RTM_Requirement_Traceability_Matrix.docx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (err: any) {
+      alert(`RTM generation failed: ${err.message}`);
+    } finally {
+      setGeneratingRTM(false);
+    }
+  };
+
+  const handleGenerateFuncSpec = async () => {
+    if (!documentId) return;
+    
+    try {
+      setGeneratingFuncSpec(true);
+      const res = await fetch('/api/generate-funcspec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+
+      const cost = parseFloat(res.headers.get('X-Generation-Cost') || '0');
+      setFuncSpecCost(cost);
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Functional_Specification.docx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (err: any) {
+      alert(`Functional Spec generation failed: ${err.message}`);
+    } finally {
+      setGeneratingFuncSpec(false);
+    }
+  };
+
+  const totalCost = processingCost + (rtmCost || 0) + (funcSpecCost || 0);
 
   const stageLabels: Record<ProcessingStage, string> = {
     idle: 'Ready to upload',
@@ -151,13 +229,11 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900">AI Regulatory Intelligence</h1>
           <p className="text-gray-500 mt-1">Upload an Australian energy regulation PDF to extract and classify obligations</p>
         </div>
 
-        {/* Upload Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -222,43 +298,101 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Results Summary */}
-        {stage === 'complete' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{obligations.length}</div>
-                <p className="text-sm text-gray-500">Total Obligations</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-red-600">
-                  {obligations.filter(o => o.obligation_type === 'binding').length}
+        {stage === 'complete' && obligations.length > 0 && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold">{obligations.length}</div>
+                  <p className="text-sm text-gray-500">Total Obligations</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-red-600">
+                    {obligations.filter(o => o.obligation_type === 'binding').length}
+                  </div>
+                  <p className="text-sm text-gray-500">Binding</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {obligations.filter(o => o.obligation_type === 'guidance').length}
+                  </div>
+                  <p className="text-sm text-gray-500">Guidance</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-green-600">
+                    ${totalCost.toFixed(4)}
+                  </div>
+                  <p className="text-sm text-gray-500">Total Cost</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="border-2 border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="text-lg">Generate Compliance Documents</CardTitle>
+                <CardDescription>
+                  Convert extracted obligations into professional Word deliverables
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <Button
+                      onClick={handleGenerateRTM}
+                      disabled={generatingRTM}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      {generatingRTM ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      )}
+                      Generate RTM (Word)
+                    </Button>
+                    {rtmCost !== null && (
+                      <p className="text-xs text-green-600 mt-1 text-center">
+                        Generated! Cost: ${rtmCost.toFixed(4)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Button
+                      onClick={handleGenerateFuncSpec}
+                      disabled={generatingFuncSpec}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      {generatingFuncSpec ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <ScrollText className="h-4 w-4 mr-2" />
+                      )}
+                      Generate Functional Spec (Word)
+                    </Button>
+                    {funcSpecCost !== null && (
+                      <p className="text-xs text-green-600 mt-1 text-center">
+                        Generated! Cost: ${funcSpecCost.toFixed(4)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-gray-500">Binding</p>
+                <p className="text-xs text-gray-600 mt-3">
+                  <strong>RTM:</strong> Requirement Traceability Matrix with 4 sections (Document Control, Interpretation, Requirements, Assumptions). Professional Word format.
+                  <br />
+                  <strong>Func Spec:</strong> Complete functional specification with regulatory traceability, requirements, risks, and assumptions. Professional Word format.
+                </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-blue-600">
-                  {obligations.filter(o => o.obligation_type === 'guidance').length}
-                </div>
-                <p className="text-sm text-gray-500">Guidance</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-green-600">
-                  ${processingCost.toFixed(4)}
-                </div>
-                <p className="text-sm text-gray-500">Processing Cost</p>
-              </CardContent>
-            </Card>
-          </div>
+          </>
         )}
 
-        {/* Obligations List */}
         {obligations.length > 0 && (
           <Card>
             <CardHeader>
