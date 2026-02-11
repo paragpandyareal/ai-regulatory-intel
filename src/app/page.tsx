@@ -205,44 +205,44 @@ export default function Home() {
       case 'binding': return 'bg-red-50 text-red-700 border-red-200';
       case 'guidance': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'definition': return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'example': return 'bg-gray-50 text-gray-700 border-gray-200';
-      default: return 'bg-gray-50 text-gray-700 border-gray-200';
+      case 'example': return 'bg-neutral-100 text-neutral-600 border-neutral-200';
+      default: return 'bg-neutral-100 text-neutral-600 border-neutral-200';
     }
   };
 
   const effortBadgeColor = (effort: string) => {
     switch (effort) {
-      case 'trivial': return 'bg-green-50 text-green-700 border-green-200';
-      case 'small': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'trivial': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'small': return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'medium': return 'bg-orange-50 text-orange-700 border-orange-200';
-      case 'large': return 'bg-red-50 text-red-700 border-red-200';
-      default: return 'bg-gray-50 text-gray-700 border-gray-200';
+      case 'large': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-neutral-100 text-neutral-600 border-neutral-200';
     }
   };
 
   const confidenceColor = (c: number) => {
-    if (c >= 0.9) return 'text-green-600';
+    if (c >= 0.9) return 'text-emerald-600';
     if (c >= 0.7) return 'text-amber-600';
-    return 'text-red-600';
+    return 'text-rose-600';
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/20 p-6 md:p-12">
+    <main className="min-h-screen bg-[#F5F7F5] p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold text-neutral-800">
             AI Regulatory Intelligence
           </h1>
-          <p className="text-slate-600">Upload an Australian energy regulation PDF to extract and classify obligations</p>
+          <p className="text-neutral-600">Upload an Australian energy regulation PDF to extract and classify obligations</p>
         </div>
 
-        <Card className="border-slate-200 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-purple-50/30 border-b border-slate-100">
-            <CardTitle className="flex items-center gap-2 text-slate-800">
-              <Upload className="h-5 w-5 text-purple-600" />
+        <Card className="border-neutral-200 shadow-sm rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="bg-gradient-to-r from-[#E8EDE8] to-[#EEF0EE] border-b border-neutral-200">
+            <CardTitle className="flex items-center gap-2 text-neutral-800">
+              <Upload className="h-5 w-5 text-[#7B9B7B]" />
               Upload Document
             </CardTitle>
-            <CardDescription className="text-slate-600">
+            <CardDescription className="text-neutral-600">
               Supports AEMO, AEMC, AER, and ESB regulatory documents (PDF, max 50MB)
             </CardDescription>
           </CardHeader>
@@ -252,13 +252,13 @@ export default function Home() {
                 type="file"
                 accept=".pdf"
                 onChange={handleFileSelect}
-                className="block w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all"
+                className="block w-full text-sm text-neutral-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-2xl file:border-0 file:text-sm file:font-medium file:bg-[#E8EDE8] file:text-[#5B7B5B] hover:file:bg-[#DFE7DF] transition-all"
                 disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
               />
               <Button
                 onClick={handleUpload}
                 disabled={!file || (stage !== 'idle' && stage !== 'complete' && stage !== 'error')}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl px-6 shadow-md"
+                className="bg-[#7B9B7B] hover:bg-[#6B8B6B] text-white rounded-2xl px-6 shadow-sm"
               >
                 {stage !== 'idle' && stage !== 'complete' && stage !== 'error' ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -272,29 +272,29 @@ export default function Home() {
             {stage !== 'idle' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-slate-700">
+                  <span className="flex items-center gap-2 text-neutral-700">
                     {stage === 'complete' ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <CheckCircle className="h-4 w-4 text-emerald-500" />
                     ) : stage === 'error' ? (
-                      <AlertCircle className="h-4 w-4 text-red-500" />
+                      <AlertCircle className="h-4 w-4 text-rose-500" />
                     ) : (
-                      <Clock className="h-4 w-4 text-purple-500 animate-pulse" />
+                      <Clock className="h-4 w-4 text-[#7B9B7B] animate-pulse" />
                     )}
                     {stageLabels[stage]}
                   </span>
                   {stage === 'complete' && (
-                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
                       <DollarSign className="h-3 w-3" />
                       ${processingCost.toFixed(4)} processing cost
                     </span>
                   )}
                 </div>
-                <Progress value={progress} className="h-2 bg-slate-100" />
+                <Progress value={progress} className="h-2 bg-neutral-100" />
               </div>
             )}
 
             {error && (
-              <p className="text-sm text-red-600 flex items-center gap-1 bg-red-50 p-3 rounded-xl">
+              <p className="text-sm text-rose-600 flex items-center gap-1 bg-rose-50 p-3 rounded-2xl border border-rose-200">
                 <AlertCircle className="h-4 w-4" /> {error}
               </p>
             )}
@@ -304,42 +304,42 @@ export default function Home() {
         {stage === 'complete' && obligations.length > 0 && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
+              <Card className="border-neutral-200 shadow-sm rounded-3xl hover:shadow-md transition-shadow bg-white">
                 <CardContent className="pt-6">
-                  <div className="text-3xl font-bold text-slate-800">{obligations.length}</div>
-                  <p className="text-sm text-slate-600 mt-1">Total Obligations</p>
+                  <div className="text-3xl font-bold text-neutral-800">{obligations.length}</div>
+                  <p className="text-sm text-neutral-600 mt-1">Total Obligations</p>
                 </CardContent>
               </Card>
-              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
+              <Card className="border-neutral-200 shadow-sm rounded-3xl hover:shadow-md transition-shadow bg-white">
                 <CardContent className="pt-6">
-                  <div className="text-3xl font-bold text-red-600">
+                  <div className="text-3xl font-bold text-rose-600">
                     {obligations.filter(o => o.obligation_type === 'binding').length}
                   </div>
-                  <p className="text-sm text-slate-600 mt-1">Binding</p>
+                  <p className="text-sm text-neutral-600 mt-1">Binding</p>
                 </CardContent>
               </Card>
-              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
+              <Card className="border-neutral-200 shadow-sm rounded-3xl hover:shadow-md transition-shadow bg-white">
                 <CardContent className="pt-6">
                   <div className="text-3xl font-bold text-blue-600">
                     {obligations.filter(o => o.obligation_type === 'guidance').length}
                   </div>
-                  <p className="text-sm text-slate-600 mt-1">Guidance</p>
+                  <p className="text-sm text-neutral-600 mt-1">Guidance</p>
                 </CardContent>
               </Card>
-              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
+              <Card className="border-neutral-200 shadow-sm rounded-3xl hover:shadow-md transition-shadow bg-white">
                 <CardContent className="pt-6">
-                  <div className="text-3xl font-bold text-green-600">
+                  <div className="text-3xl font-bold text-emerald-600">
                     ${totalCost.toFixed(4)}
                   </div>
-                  <p className="text-sm text-slate-600 mt-1">Total Cost</p>
+                  <p className="text-sm text-neutral-600 mt-1">Total Cost</p>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="border-purple-200 shadow-lg rounded-2xl bg-gradient-to-br from-purple-50/50 to-blue-50/30">
+            <Card className="border-[#C5D5C5] shadow-sm rounded-3xl bg-gradient-to-br from-[#F0F5F0] to-[#F8FAF8]">
               <CardHeader>
-                <CardTitle className="text-lg text-slate-800">Generate Compliance Documents</CardTitle>
-                <CardDescription className="text-slate-600">
+                <CardTitle className="text-lg text-neutral-800">Generate Compliance Documents</CardTitle>
+                <CardDescription className="text-neutral-600">
                   Convert extracted obligations into professional Word deliverables
                 </CardDescription>
               </CardHeader>
@@ -349,7 +349,7 @@ export default function Home() {
                     <Button
                       onClick={() => handleGenerateRTM(false)}
                       disabled={generatingRTM}
-                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl shadow-md"
+                      className="w-full bg-[#E8D4A0] hover:bg-[#DEC890] text-neutral-800 rounded-2xl shadow-sm font-medium"
                     >
                       {generatingRTM ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -360,11 +360,11 @@ export default function Home() {
                     </Button>
                     {rtmCost !== null && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-green-600 font-medium">Generated! ${rtmCost.toFixed(4)}</span>
+                        <span className="text-emerald-600 font-medium">Generated! ${rtmCost.toFixed(4)}</span>
                         <button
                           onClick={() => handleGenerateRTM(true)}
                           disabled={generatingRTM}
-                          className="text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                          className="text-[#7B9B7B] hover:text-[#6B8B6B] flex items-center gap-1 font-medium"
                         >
                           <RefreshCw className="h-3 w-3" />
                           Regenerate
@@ -376,7 +376,7 @@ export default function Home() {
                     <Button
                       onClick={() => handleGenerateFuncSpec(false)}
                       disabled={generatingFuncSpec}
-                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl shadow-md"
+                      className="w-full bg-[#E8D4A0] hover:bg-[#DEC890] text-neutral-800 rounded-2xl shadow-sm font-medium"
                     >
                       {generatingFuncSpec ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -387,11 +387,11 @@ export default function Home() {
                     </Button>
                     {funcSpecCost !== null && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-green-600 font-medium">Generated! ${funcSpecCost.toFixed(4)}</span>
+                        <span className="text-emerald-600 font-medium">Generated! ${funcSpecCost.toFixed(4)}</span>
                         <button
                           onClick={() => handleGenerateFuncSpec(true)}
                           disabled={generatingFuncSpec}
-                          className="text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                          className="text-[#7B9B7B] hover:text-[#6B8B6B] flex items-center gap-1 font-medium"
                         >
                           <RefreshCw className="h-3 w-3" />
                           Regenerate
@@ -400,8 +400,8 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                <div className="mt-4 p-4 bg-white/50 rounded-xl text-xs text-slate-600 space-y-1">
-                  <p className="flex items-center gap-1">
+                <div className="mt-4 p-4 bg-white/70 rounded-2xl text-xs text-neutral-600 space-y-1 border border-neutral-200">
+                  <p className="flex items-center gap-1 font-medium">
                     <Clock className="h-3 w-3" />
                     Generation takes 20-60 seconds per document
                   </p>
@@ -414,17 +414,17 @@ export default function Home() {
         )}
 
         {obligations.length > 0 && (
-          <Card className="border-slate-200 shadow-lg rounded-2xl">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-purple-50/30 border-b border-slate-100">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
-                <FileText className="h-5 w-5 text-purple-600" />
+          <Card className="border-neutral-200 shadow-sm rounded-3xl bg-white">
+            <CardHeader className="bg-gradient-to-r from-[#E8EDE8] to-[#EEF0EE] border-b border-neutral-200">
+              <CardTitle className="flex items-center gap-2 text-neutral-800">
+                <FileText className="h-5 w-5 text-[#7B9B7B]" />
                 Extracted Obligations ({obligations.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-4">
                 {obligations.map((ob) => (
-                  <div key={ob.id} className="border border-slate-200 rounded-2xl p-5 space-y-3 hover:shadow-md transition-shadow bg-white">
+                  <div key={ob.id} className="border border-neutral-200 rounded-3xl p-5 space-y-3 hover:shadow-md transition-shadow bg-white">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${typeBadgeColor(ob.obligation_type)}`}>
@@ -443,28 +443,28 @@ export default function Home() {
                         <span className={`text-sm font-semibold ${confidenceColor(ob.confidence)}`}>
                           {(ob.confidence * 100).toFixed(0)}%
                         </span>
-                        <span className="text-xs text-slate-500">confidence</span>
+                        <span className="text-xs text-neutral-500">confidence</span>
                       </div>
                     </div>
 
-                    <p className="text-sm text-slate-700 leading-relaxed">{ob.extracted_text}</p>
-                    <p className="text-xs text-slate-500">Section {ob.section_number}</p>
+                    <p className="text-sm text-neutral-700 leading-relaxed">{ob.extracted_text}</p>
+                    <p className="text-xs text-neutral-500">Section {ob.section_number}</p>
 
                     <div className="flex flex-wrap gap-2">
                       {ob.stakeholders?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-slate-100 text-slate-700">
+                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">
                           {s}
                         </span>
                       ))}
                       {ob.impacted_systems?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-blue-50 text-blue-700">
+                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs bg-blue-50 text-blue-700 border border-blue-200">
                           {s}
                         </span>
                       ))}
                     </div>
 
                     {ob.classification_reasoning && (
-                      <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl">
+                      <p className="text-xs text-neutral-500 italic bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
                         AI reasoning: {ob.classification_reasoning}
                       </p>
                     )}
