@@ -10,31 +10,38 @@ interface RTMGenerationResult {
 
 export async function generateRTM(
   documentId: string,
-  obligations: any[]
+  obligations: any[],
+  forceRegenerate = false
 ): Promise<RTMGenerationResult> {
   const startTime = Date.now();
   
-  // Check cache first
   const cacheKey = `docgen_rtm_${documentId}`;
-  const { data: cached } = await supabaseAdmin
-    .from('processing_cache')
-    .select('output, id, hit_count')
-    .eq('cache_key', cacheKey)
-    .single();
-
-  if (cached?.output) {
-    console.log('[RTM Generator] Cache hit - using cached JSON data');
-    await supabaseAdmin
+  
+  // Delete cache if force regenerate
+  if (forceRegenerate) {
+    await supabaseAdmin.from('processing_cache').delete().eq('cache_key', cacheKey);
+    console.log('[RTM Generator] Cache cleared for regeneration');
+  } else {
+    // Check cache
+    const { data: cached } = await supabaseAdmin
       .from('processing_cache')
-      .update({ hit_count: cached.hit_count + 1 })
-      .eq('id', cached.id);
-    
-    await logCost(documentId, 'rtm_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
-    
-    // Regenerate document from cached JSON (fast, no API cost)
-    const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
-    const buffer = await createRTMDocument(cached.output, doc);
-    return { docxBuffer: buffer, cost: 0 };
+      .select('output, id, hit_count')
+      .eq('cache_key', cacheKey)
+      .single();
+
+    if (cached?.output) {
+      console.log('[RTM Generator] Cache hit - using cached JSON data');
+      await supabaseAdmin
+        .from('processing_cache')
+        .update({ hit_count: cached.hit_count + 1 })
+        .eq('id', cached.id);
+      
+      await logCost(documentId, 'rtm_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
+      
+      const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
+      const buffer = await createRTMDocument(cached.output, doc);
+      return { docxBuffer: buffer, cost: 0 };
+    }
   }
   
   const { data: doc } = await supabaseAdmin
@@ -52,12 +59,18 @@ export async function generateRTM(
   const prompt = `You are generating a Requirement Traceability Matrix (RTM) for Australian energy market compliance.
 
 SOURCE DOCUMENT: ${doc.title}
-EFFECTIVE DATE: ${doc.effective_date || 'Not specified'}
+DOCUMENT FINALIZATION DATE: ${doc.effective_date || 'Not specified'} (Note: This is when the document was finalized. Different obligations may have different commencement dates)
 DOCUMENT TYPE: ${doc.document_type || 'Regulatory Document'}
 TOTAL OBLIGATIONS: ${obligations.length}
 
 EXTRACTED OBLIGATIONS:
 ${obligationsContext}
+
+CRITICAL INSTRUCTION ABOUT DATES:
+- The document finalization date is NOT necessarily the commencement date
+- Individual obligations may commence at DIFFERENT dates (Feb 2026, July 2026, Oct 2026, etc.)
+- Extract specific commencement dates from obligation text where mentioned
+- If phased implementation, note this in the Commencement Date field
 
 Generate a complete RTM with ALL 4 TABS. Follow these rules strictly:
 
@@ -65,6 +78,7 @@ Generate a complete RTM with ALL 4 TABS. Follow these rules strictly:
 2. Flag assumptions explicitly: [ASSUMED], [DERIVED], or [VERBATIM]
 3. Always cite source section numbers
 4. Generate complete tables - not just headers
+5. Extract specific commencement dates from obligation text
 
 RESPOND WITH ONLY VALID JSON in this format:
 
@@ -76,19 +90,20 @@ RESPOND WITH ONLY VALID JSON in this format:
     "scopeArea": "string [DERIVED - Market Layer/Core/CRM]",
     "impactedParties": ["Retailer", "etc"],
     "targetJurisdiction": "Australia (specify states if clear)",
-    "commencementDate": "${doc.effective_date || '[ASSUMED - pending confirmation]'}",
+    "documentPublicationDate": "${doc.effective_date || '[ASSUMED - pending confirmation]'}",
+    "commencementDate": "[DERIVED from obligations - mention if phased]",
     "version": "v1"
   },
   "tab2_interpretation": [
     {
       "reqId": "REQ-001",
       "regDocument": "${doc.title}",
-      "regEffectiveDate": "${doc.effective_date || 'TBD'}",
+      "regEffectiveDate": "Specific commencement date if in obligation text, else ${doc.effective_date || 'TBD'}",
       "regClause": "Section X.X",
       "verbatim": "Exact text from source",
       "summary": "Plain English summary",
       "appliesTo": "Who this affects",
-      "appliesWhen": "Trigger condition",
+      "appliesWhen": "Trigger condition or specific date",
       "inScope": true,
       "outOfScope": "What's excluded",
       "interpretationNotes": "[DERIVED/VERBATIM/ASSUMED] explanation"
@@ -98,7 +113,7 @@ RESPOND WITH ONLY VALID JSON in this format:
     {
       "busReqId": "BR-001",
       "linkedReqId": "REQ-001",
-      "regEffectiveDate": "${doc.effective_date || 'TBD'}",
+      "regEffectiveDate": "Specific date if mentioned",
       "businessRequirement": "Outcome-based requirement",
       "systemRequirement": "Capability-based requirement",
       "defaultBehaviour": "How system should behave",
@@ -142,10 +157,10 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     throw new Error('AI returned invalid JSON for RTM generation');
   }
 
-  // Cache using 'extraction' as operation type (allowed by DB constraint)
+  // Cache the new result
   const { error: cacheError } = await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
-    operation: 'extraction', // Use allowed operation type
+    operation: 'extraction',
     input_hash: documentId,
     output: rtmData,
     model: 'claude-sonnet-4-20250514',
@@ -203,7 +218,8 @@ async function createRTMDocument(rtmData: any, doc: any): Promise<Buffer> {
             ['Scope Area', doc1.scopeArea || 'Not specified'],
             ['Impacted Parties', Array.isArray(doc1.impactedParties) ? doc1.impactedParties.join(', ') : 'Not specified'],
             ['Target Jurisdiction', doc1.targetJurisdiction || 'Australia'],
-            ['Commencement Date', doc1.commencementDate || 'TBD'],
+            ['Document Publication Date', doc1.documentPublicationDate || 'TBD'],
+            ['Commencement Date(s)', doc1.commencementDate || 'See individual requirements'],
             ['Version', doc1.version || 'v1'],
           ],
           [30, 70]
@@ -216,7 +232,7 @@ async function createRTMDocument(rtmData: any, doc: any): Promise<Buffer> {
           pageBreakBefore: true,
         }),
         createBetterTable(
-          ['Req ID', 'Reg Document', 'Effective Date', 'Clause', 'Verbatim', 'Summary', 'Applies To', 'Applies When', 'In Scope', 'Interpretation Notes'],
+          ['Req ID', 'Reg Document', 'Commencement Date', 'Clause', 'Verbatim', 'Summary', 'Applies To', 'Applies When', 'In Scope', 'Interpretation Notes'],
           doc2.map((r: any) => [
             r.reqId || '',
             r.regDocument || '',
@@ -239,7 +255,7 @@ async function createRTMDocument(rtmData: any, doc: any): Promise<Buffer> {
           pageBreakBefore: true,
         }),
         createBetterTable(
-          ['Bus Req ID', 'Linked Req ID', 'Effective Date', 'Business Requirement', 'System Requirement', 'Default Behaviour', 'Intended Outcome', 'Chargeable?'],
+          ['Bus Req ID', 'Linked Req ID', 'Commencement Date', 'Business Requirement', 'System Requirement', 'Default Behaviour', 'Intended Outcome', 'Chargeable?'],
           doc3.map((r: any) => [
             r.busReqId || '',
             r.linkedReqId || '',

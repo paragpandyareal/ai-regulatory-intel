@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw } from 'lucide-react';
 
 interface Obligation {
   id: string;
@@ -116,7 +116,7 @@ export default function Home() {
     }
   };
 
-  const handleGenerateRTM = async () => {
+  const handleGenerateRTM = async (forceRegenerate = false) => {
     if (!documentId) return;
     
     try {
@@ -124,7 +124,7 @@ export default function Home() {
       const res = await fetch('/api/generate-rtm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId }),
+        body: JSON.stringify({ documentId, forceRegenerate }),
       });
 
       if (!res.ok) {
@@ -152,7 +152,7 @@ export default function Home() {
     }
   };
 
-  const handleGenerateFuncSpec = async () => {
+  const handleGenerateFuncSpec = async (forceRegenerate = false) => {
     if (!documentId) return;
     
     try {
@@ -160,7 +160,7 @@ export default function Home() {
       const res = await fetch('/api/generate-funcspec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId }),
+        body: JSON.stringify({ documentId, forceRegenerate }),
       });
 
       if (!res.ok) {
@@ -202,60 +202,63 @@ export default function Home() {
 
   const typeBadgeColor = (type: string) => {
     switch (type) {
-      case 'binding': return 'bg-red-100 text-red-800 border-red-200';
-      case 'guidance': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'definition': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'example': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'binding': return 'bg-red-50 text-red-700 border-red-200';
+      case 'guidance': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'definition': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'example': return 'bg-gray-50 text-gray-700 border-gray-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
   const effortBadgeColor = (effort: string) => {
     switch (effort) {
-      case 'trivial': return 'bg-green-100 text-green-800 border-green-200';
-      case 'small': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'medium': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'large': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'trivial': return 'bg-green-50 text-green-700 border-green-200';
+      case 'small': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'medium': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'large': return 'bg-red-50 text-red-700 border-red-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
   const confidenceColor = (c: number) => {
     if (c >= 0.9) return 'text-green-600';
-    if (c >= 0.7) return 'text-yellow-600';
+    if (c >= 0.7) return 'text-amber-600';
     return 'text-red-600';
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-12">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/20 p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">AI Regulatory Intelligence</h1>
-          <p className="text-gray-500 mt-1">Upload an Australian energy regulation PDF to extract and classify obligations</p>
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            AI Regulatory Intelligence
+          </h1>
+          <p className="text-slate-600">Upload an Australian energy regulation PDF to extract and classify obligations</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
+        <Card className="border-slate-200 shadow-lg rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-purple-50/30 border-b border-slate-100">
+            <CardTitle className="flex items-center gap-2 text-slate-800">
+              <Upload className="h-5 w-5 text-purple-600" />
               Upload Document
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-slate-600">
               Supports AEMO, AEMC, AER, and ESB regulatory documents (PDF, max 50MB)
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="flex items-center gap-4">
               <input
                 type="file"
                 accept=".pdf"
                 onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="block w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all"
                 disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
               />
               <Button
                 onClick={handleUpload}
                 disabled={!file || (stage !== 'idle' && stage !== 'complete' && stage !== 'error')}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl px-6 shadow-md"
               >
                 {stage !== 'idle' && stage !== 'complete' && stage !== 'error' ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -269,29 +272,29 @@ export default function Home() {
             {stage !== 'idle' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 text-slate-700">
                     {stage === 'complete' ? (
                       <CheckCircle className="h-4 w-4 text-green-500" />
                     ) : stage === 'error' ? (
                       <AlertCircle className="h-4 w-4 text-red-500" />
                     ) : (
-                      <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
+                      <Clock className="h-4 w-4 text-purple-500 animate-pulse" />
                     )}
                     {stageLabels[stage]}
                   </span>
                   {stage === 'complete' && (
-                    <span className="flex items-center gap-1 text-green-600">
+                    <span className="flex items-center gap-1 text-green-600 font-medium">
                       <DollarSign className="h-3 w-3" />
                       ${processingCost.toFixed(4)} processing cost
                     </span>
                   )}
                 </div>
-                <Progress value={progress} className="h-2" />
+                <Progress value={progress} className="h-2 bg-slate-100" />
               </div>
             )}
 
             {error && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
+              <p className="text-sm text-red-600 flex items-center gap-1 bg-red-50 p-3 rounded-xl">
                 <AlertCircle className="h-4 w-4" /> {error}
               </p>
             )}
@@ -301,120 +304,137 @@ export default function Home() {
         {stage === 'complete' && obligations.length > 0 && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
+              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">{obligations.length}</div>
-                  <p className="text-sm text-gray-500">Total Obligations</p>
+                  <div className="text-3xl font-bold text-slate-800">{obligations.length}</div>
+                  <p className="text-sm text-slate-600 mt-1">Total Obligations</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-red-600">
+                  <div className="text-3xl font-bold text-red-600">
                     {obligations.filter(o => o.obligation_type === 'binding').length}
                   </div>
-                  <p className="text-sm text-gray-500">Binding</p>
+                  <p className="text-sm text-slate-600 mt-1">Binding</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-3xl font-bold text-blue-600">
                     {obligations.filter(o => o.obligation_type === 'guidance').length}
                   </div>
-                  <p className="text-sm text-gray-500">Guidance</p>
+                  <p className="text-sm text-slate-600 mt-1">Guidance</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-slate-200 shadow-md rounded-2xl hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-3xl font-bold text-green-600">
                     ${totalCost.toFixed(4)}
                   </div>
-                  <p className="text-sm text-gray-500">Total Cost</p>
+                  <p className="text-sm text-slate-600 mt-1">Total Cost</p>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="border-2 border-blue-200 bg-blue-50">
+            <Card className="border-purple-200 shadow-lg rounded-2xl bg-gradient-to-br from-purple-50/50 to-blue-50/30">
               <CardHeader>
-                <CardTitle className="text-lg">Generate Compliance Documents</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-lg text-slate-800">Generate Compliance Documents</CardTitle>
+                <CardDescription className="text-slate-600">
                   Convert extracted obligations into professional Word deliverables
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Button
-                      onClick={handleGenerateRTM}
+                      onClick={() => handleGenerateRTM(false)}
                       disabled={generatingRTM}
-                      className="w-full"
-                      variant="outline"
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl shadow-md"
                     >
                       {generatingRTM ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       ) : (
                         <FileSpreadsheet className="h-4 w-4 mr-2" />
                       )}
-                      Generate RTM (Word)
+                      Generate RTM
                     </Button>
                     {rtmCost !== null && (
-                      <p className="text-xs text-green-600 mt-1 text-center">
-                        Generated! Cost: ${rtmCost.toFixed(4)}
-                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-green-600 font-medium">Generated! ${rtmCost.toFixed(4)}</span>
+                        <button
+                          onClick={() => handleGenerateRTM(true)}
+                          disabled={generatingRTM}
+                          className="text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Regenerate
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div className="space-y-2">
                     <Button
-                      onClick={handleGenerateFuncSpec}
+                      onClick={() => handleGenerateFuncSpec(false)}
                       disabled={generatingFuncSpec}
-                      className="w-full"
-                      variant="outline"
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl shadow-md"
                     >
                       {generatingFuncSpec ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       ) : (
                         <ScrollText className="h-4 w-4 mr-2" />
                       )}
-                      Generate Functional Spec (Word)
+                      Generate Functional Spec
                     </Button>
                     {funcSpecCost !== null && (
-                      <p className="text-xs text-green-600 mt-1 text-center">
-                        Generated! Cost: ${funcSpecCost.toFixed(4)}
-                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-green-600 font-medium">Generated! ${funcSpecCost.toFixed(4)}</span>
+                        <button
+                          onClick={() => handleGenerateFuncSpec(true)}
+                          disabled={generatingFuncSpec}
+                          className="text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Regenerate
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-gray-600 mt-3">
-                  <strong>RTM:</strong> Requirement Traceability Matrix with 4 sections (Document Control, Interpretation, Requirements, Assumptions). Professional Word format.
-                  <br />
-                  <strong>Func Spec:</strong> Complete functional specification with regulatory traceability, requirements, risks, and assumptions. Professional Word format.
-                </p>
+                <div className="mt-4 p-4 bg-white/50 rounded-xl text-xs text-slate-600 space-y-1">
+                  <p className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Generation takes 20-60 seconds per document
+                  </p>
+                  <p><strong>RTM:</strong> Requirement Traceability Matrix with 4 tabs</p>
+                  <p><strong>Func Spec:</strong> Complete functional specification</p>
+                </div>
               </CardContent>
             </Card>
           </>
         )}
 
         {obligations.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+          <Card className="border-slate-200 shadow-lg rounded-2xl">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-purple-50/30 border-b border-slate-100">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <FileText className="h-5 w-5 text-purple-600" />
                 Extracted Obligations ({obligations.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="space-y-4">
                 {obligations.map((ob) => (
-                  <div key={ob.id} className="border rounded-lg p-4 space-y-3 hover:shadow-sm transition-shadow">
+                  <div key={ob.id} className="border border-slate-200 rounded-2xl p-5 space-y-3 hover:shadow-md transition-shadow bg-white">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${typeBadgeColor(ob.obligation_type)}`}>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${typeBadgeColor(ob.obligation_type)}`}>
                           {ob.obligation_type}
                         </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${effortBadgeColor(ob.estimated_effort)}`}>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${effortBadgeColor(ob.estimated_effort)}`}>
                           {ob.estimated_effort} effort
                         </span>
                         {ob.implementation_type && ob.implementation_type !== 'no_change' && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-indigo-100 text-indigo-800 border-indigo-200">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
                             {ob.implementation_type.replace('_', ' ')}
                           </span>
                         )}
@@ -423,28 +443,28 @@ export default function Home() {
                         <span className={`text-sm font-semibold ${confidenceColor(ob.confidence)}`}>
                           {(ob.confidence * 100).toFixed(0)}%
                         </span>
-                        <span className="text-xs text-gray-400">confidence</span>
+                        <span className="text-xs text-slate-500">confidence</span>
                       </div>
                     </div>
 
-                    <p className="text-sm text-gray-800">{ob.extracted_text}</p>
-                    <p className="text-xs text-gray-400">Section {ob.section_number}</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{ob.extracted_text}</p>
+                    <p className="text-xs text-slate-500">Section {ob.section_number}</p>
 
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {ob.stakeholders?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-slate-100 text-slate-700">
                           {s}
                         </span>
                       ))}
                       {ob.impacted_systems?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600">
+                        <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-blue-50 text-blue-700">
                           {s}
                         </span>
                       ))}
                     </div>
 
                     {ob.classification_reasoning && (
-                      <p className="text-xs text-gray-500 italic">
+                      <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl">
                         AI reasoning: {ob.classification_reasoning}
                       </p>
                     )}

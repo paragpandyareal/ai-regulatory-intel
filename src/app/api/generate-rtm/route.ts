@@ -6,7 +6,7 @@ export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
-    const { documentId } = await request.json();
+    const { documentId, forceRegenerate = false } = await request.json();
 
     if (!documentId) {
       return NextResponse.json({ error: 'Missing documentId' }, { status: 400 });
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No obligations found for this document' }, { status: 404 });
     }
 
-    const result = await generateRTM(documentId, obligations);
+    const result = await generateRTM(documentId, obligations, forceRegenerate);
 
     return new NextResponse(result.docxBuffer as any, {
       status: 200,

@@ -10,31 +10,38 @@ interface FuncSpecResult {
 
 export async function generateFunctionalSpec(
   documentId: string,
-  obligations: any[]
+  obligations: any[],
+  forceRegenerate = false
 ): Promise<FuncSpecResult> {
   const startTime = Date.now();
   
-  // Check cache first
   const cacheKey = `docgen_funcspec_${documentId}`;
-  const { data: cached } = await supabaseAdmin
-    .from('processing_cache')
-    .select('output, id, hit_count')
-    .eq('cache_key', cacheKey)
-    .single();
-
-  if (cached?.output) {
-    console.log('[FuncSpec Generator] Cache hit - using cached JSON data');
-    await supabaseAdmin
+  
+  // Delete cache if force regenerate
+  if (forceRegenerate) {
+    await supabaseAdmin.from('processing_cache').delete().eq('cache_key', cacheKey);
+    console.log('[FuncSpec Generator] Cache cleared for regeneration');
+  } else {
+    // Check cache
+    const { data: cached } = await supabaseAdmin
       .from('processing_cache')
-      .update({ hit_count: cached.hit_count + 1 })
-      .eq('id', cached.id);
-    
-    await logCost(documentId, 'funcspec_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
-    
-    // Regenerate document from cached JSON (fast, no API cost)
-    const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
-    const buffer = await createFuncSpecDocument(cached.output, doc);
-    return { docxBuffer: buffer, cost: 0 };
+      .select('output, id, hit_count')
+      .eq('cache_key', cacheKey)
+      .single();
+
+    if (cached?.output) {
+      console.log('[FuncSpec Generator] Cache hit - using cached JSON data');
+      await supabaseAdmin
+        .from('processing_cache')
+        .update({ hit_count: cached.hit_count + 1 })
+        .eq('id', cached.id);
+      
+      await logCost(documentId, 'funcspec_generation', 'cache', 0, 0, 0, true, Date.now() - startTime);
+      
+      const { data: doc } = await supabaseAdmin.from('documents').select('*').eq('id', documentId).single();
+      const buffer = await createFuncSpecDocument(cached.output, doc);
+      return { docxBuffer: buffer, cost: 0 };
+    }
   }
 
   const { data: doc } = await supabaseAdmin
@@ -53,18 +60,26 @@ export async function generateFunctionalSpec(
   const prompt = `You are generating a Functional Specification for Australian energy market regulatory compliance.
 
 SOURCE DOCUMENT: ${doc.title}
-EFFECTIVE DATE: ${doc.effective_date || 'Not specified'}
+DOCUMENT FINALIZATION DATE: ${doc.effective_date || 'Not specified'} (Note: This is when the document was finalized. Different obligations may have different commencement dates - check individual sections)
 TOTAL OBLIGATIONS: ${obligations.length} (${bindingObs.length} binding)
 
 EXTRACTED OBLIGATIONS:
 ${obligationsContext}
+
+CRITICAL INSTRUCTION ABOUT DATES:
+- The "Effective Date" field refers to when the DOCUMENT was finalized/published
+- Individual obligations may commence at DIFFERENT dates (Feb 2026, July 2026, Oct 2026, etc.)
+- When you reference commencement/implementation dates, check the obligation text for specific dates
+- If obligation text mentions "commencing on [date]" or "from [date]", use that specific date
+- Flag any phased implementation with [PHASED COMMENCEMENT - see obligation details]
 
 Generate a COMPLETE Functional Specification. RESPOND WITH ONLY VALID JSON:
 
 {
   "initiativeOverview": {
     "regulatoryDriver": "${doc.title}",
-    "effectiveDate": "${doc.effective_date || '[ASSUMED - pending confirmation]'}",
+    "documentPublicationDate": "${doc.effective_date || '[ASSUMED - pending confirmation]'}",
+    "commencementDates": "[DERIVED from obligations - mention if phased: e.g., Feb 2026 for X, July 2026 for Y, Oct 2026 for Z]",
     "impactedParticipants": ["Retailer", "etc - DERIVED from obligations"],
     "complianceRisk": "Risk if not delivered - DERIVED"
   },
@@ -73,6 +88,7 @@ Generate a COMPLETE Functional Specification. RESPOND WITH ONLY VALID JSON:
       "source": "${doc.title}",
       "clause": "Section X.X",
       "obligationSummary": "Summary of obligation",
+      "commencementDate": "Specific date if mentioned, or 'See document finalization date'",
       "confidence": "High | Medium | Low"
     }
   ],
@@ -91,6 +107,7 @@ Generate a COMPLETE Functional Specification. RESPOND WITH ONLY VALID JSON:
       "requirement": "System MUST...",
       "classification": "VERBATIM | DERIVED | ASSUMED | UNCERTAIN",
       "source": "Section X.X",
+      "commencementDate": "Specific date if mentioned in obligation text",
       "notes": "Additional context"
     }
   ],
@@ -137,6 +154,7 @@ CRITICAL RULES:
 - Generate AT LEAST 5 functional requirements from the ${bindingObs.length} binding obligations
 - Flag ALL derivations with [DERIVED - reason]
 - Quote source sections for VERBATIM content
+- Extract specific commencement dates from obligation text where mentioned
 - NO hallucination
 
 RESPOND WITH ONLY THE JSON OBJECT.`;
@@ -157,10 +175,10 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     throw new Error('AI returned invalid JSON for Functional Spec generation');
   }
 
-  // Cache using 'extraction' as operation type (allowed by DB constraint)
+  // Cache the new result
   const { error: cacheError } = await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
-    operation: 'extraction', // Use allowed operation type
+    operation: 'extraction',
     input_hash: documentId,
     output: specData,
     model: 'claude-sonnet-4-20250514',
@@ -210,7 +228,11 @@ async function createFuncSpecDocument(specData: any, doc: any): Promise<Buffer> 
           spacing: { after: 120 }
         }),
         new Paragraph({ 
-          text: `Effective Date: ${specData.initiativeOverview?.effectiveDate || 'TBD'}`,
+          text: `Document Publication Date: ${specData.initiativeOverview?.documentPublicationDate || 'TBD'}`,
+          spacing: { after: 120 }
+        }),
+        new Paragraph({ 
+          text: `Commencement Dates: ${specData.initiativeOverview?.commencementDates || 'See individual requirements'}`,
           spacing: { after: 120 }
         }),
         new Paragraph({ 
@@ -224,14 +246,15 @@ async function createFuncSpecDocument(specData: any, doc: any): Promise<Buffer> 
         
         new Paragraph({ text: '2. REGULATORY SOURCE REGISTER', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
-          ['Source', 'Clause', 'Obligation Summary', 'Confidence'],
+          ['Source', 'Clause', 'Obligation Summary', 'Commencement Date', 'Confidence'],
           (specData.regulatorySourceRegister || []).map((r: any) => [
             r.source || '',
             r.clause || '',
             r.obligationSummary || '',
+            r.commencementDate || 'TBD',
             r.confidence || '',
           ]),
-          [20, 15, 50, 15]
+          [20, 12, 40, 15, 13]
         ),
         
         new Paragraph({ text: '3. PROBLEM STATEMENT', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
@@ -270,15 +293,16 @@ async function createFuncSpecDocument(specData: any, doc: any): Promise<Buffer> 
         
         new Paragraph({ text: '5. FUNCTIONAL REQUIREMENTS', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
         createBetterTable(
-          ['ID', 'Requirement', 'Classification', 'Source', 'Notes'],
+          ['ID', 'Requirement', 'Classification', 'Source', 'Commencement', 'Notes'],
           (specData.functionalRequirements || []).map((r: any) => [
             r.id || '',
             r.requirement || '',
             r.classification || '',
             r.source || '',
+            r.commencementDate || 'TBD',
             r.notes || '',
           ]),
-          [8, 42, 15, 15, 20]
+          [7, 35, 13, 13, 12, 20]
         ),
         
         new Paragraph({ text: '6. BUSINESS RULES', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }),
