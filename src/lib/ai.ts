@@ -8,7 +8,8 @@ const anthropic = new Anthropic({
 export async function callClaude(
   prompt: string,
   pdfBase64?: string,
-  maxTokens: number = 16000
+  maxTokens: number = 16000,
+  model: string = 'claude-haiku-4-5-20251001'
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const content: any[] = [];
 
@@ -26,7 +27,7 @@ export async function callClaude(
   content.push({ type: 'text', text: prompt });
 
   const stream = await anthropic.messages.stream({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: maxTokens,
     messages: [{ role: 'user', content }],
   });
@@ -49,11 +50,12 @@ export async function callClaudeWithRetry(
   prompt: string,
   pdfBase64?: string,
   maxTokens: number = 16000,
-  maxRetries: number = 3
+  maxRetries: number = 3,
+  model: string = 'claude-haiku-4-5-20251001'
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await callClaude(prompt, pdfBase64, maxTokens);
+      return await callClaude(prompt, pdfBase64, maxTokens, model);
     } catch (error: any) {
       const isRateLimit = error?.status === 429;
       if (isRateLimit && attempt < maxRetries) {
@@ -128,10 +130,18 @@ export function repairJson(text: string): string {
   return clean;
 }
 
-export function calculateCost(inputTokens: number, outputTokens: number): number {
-  const inputCost = (inputTokens / 1_000_000) * 1.00;
-  const outputCost = (outputTokens / 1_000_000) * 5.00;
-  return inputCost + outputCost;
+export function calculateCost(inputTokens: number, outputTokens: number, isOpus: boolean = false): number {
+  if (isOpus) {
+    // Claude Opus 4.6 pricing: $15 per MTok input, $75 per MTok output
+    const inputCost = (inputTokens / 1_000_000) * 15.00;
+    const outputCost = (outputTokens / 1_000_000) * 75.00;
+    return inputCost + outputCost;
+  } else {
+    // Haiku pricing: $1 per MTok input, $5 per MTok output
+    const inputCost = (inputTokens / 1_000_000) * 1.00;
+    const outputCost = (outputTokens / 1_000_000) * 5.00;
+    return inputCost + outputCost;
+  }
 }
 
 export { anthropic };

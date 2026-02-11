@@ -17,12 +17,10 @@ export async function generateFunctionalSpec(
   
   const cacheKey = `docgen_funcspec_${documentId}`;
   
-  // Delete cache if force regenerate
   if (forceRegenerate) {
     await supabaseAdmin.from('processing_cache').delete().eq('cache_key', cacheKey);
     console.log('[FuncSpec Generator] Cache cleared for regeneration');
   } else {
-    // Check cache
     const { data: cached } = await supabaseAdmin
       .from('processing_cache')
       .select('output, id, hit_count')
@@ -159,9 +157,9 @@ CRITICAL RULES:
 
 RESPOND WITH ONLY THE JSON OBJECT.`;
 
-  const response = await callClaudeWithRetry(prompt, undefined, 32000);
-  const cost = calculateCost(response.inputTokens, response.outputTokens);
-  await logCost(documentId, 'funcspec_generation', 'claude-sonnet-4-20250514', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
+  const response = await callClaudeWithRetry(prompt, undefined, 32000, 3, 'claude-opus-4-6-20260206');
+  const cost = calculateCost(response.inputTokens, response.outputTokens, true); // true for Opus pricing
+  await logCost(documentId, 'funcspec_generation', 'claude-opus-4-6', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
 
   let specData: any;
   try {
@@ -175,13 +173,12 @@ RESPOND WITH ONLY THE JSON OBJECT.`;
     throw new Error('AI returned invalid JSON for Functional Spec generation');
   }
 
-  // Cache the new result
   const { error: cacheError } = await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
     operation: 'extraction',
     input_hash: documentId,
     output: specData,
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-opus-4-6',
     tokens_used: response.inputTokens + response.outputTokens,
     cost,
   });
