@@ -237,6 +237,8 @@ export default function Home() {
     return 'text-rose-600';
   };
 
+  const isProcessing = stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying';
+
   return (
     <main className="min-h-screen bg-[#F5F7F5] p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -264,14 +266,14 @@ export default function Home() {
                 accept=".pdf"
                 onChange={handleFileSelect}
                 className="block w-full text-sm text-neutral-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-2xl file:border-0 file:text-sm file:font-medium file:bg-[#E8EDE8] file:text-[#5B7B5B] hover:file:bg-[#DFE7DF] transition-all"
-                disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
+                disabled={isProcessing}
               />
               <Button
                 onClick={() => handleUpload(false)}
                 disabled={!file || (stage !== 'idle' && stage !== 'complete' && stage !== 'error')}
                 className="bg-[#7B9B7B] hover:bg-[#6B8B6B] text-white rounded-2xl px-6 shadow-sm"
               >
-                {stage !== 'idle' && stage !== 'complete' && stage !== 'error' ? (
+                {isProcessing ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
                   <Zap className="h-4 w-4 mr-2" />
@@ -358,7 +360,7 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => handleUpload(true)}
-                    disabled={stage === 'uploading' || stage === 'parsing' || stage === 'extracting' || stage === 'classifying'}
+                    disabled={isProcessing}
                     className="text-[#7B9B7B] hover:text-[#6B8B6B] flex items-center gap-1 text-sm font-medium disabled:opacity-50"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />

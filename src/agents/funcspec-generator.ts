@@ -157,7 +157,7 @@ CRITICAL RULES:
 
 RESPOND WITH ONLY THE JSON OBJECT.`;
 
-  const response = await callClaudeWithRetry(prompt, undefined, 32000, 3, 'claude-opus-4-6-20260206');
+  const response = await callClaudeWithRetry(prompt, undefined, 32000, 3, 'claude-opus-4-6');
   const cost = calculateCost(response.inputTokens, response.outputTokens, true); // true for Opus pricing
   await logCost(documentId, 'funcspec_generation', 'claude-opus-4-6', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
 
