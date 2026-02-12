@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, Info } from 'lucide-react';
 import ComplianceCalendar from '@/components/ComplianceCalendar';
 import CommencementDateInput from '@/components/CommencementDateInput';
 
@@ -299,33 +299,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-3 sm:p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
-        {/* DISCLAIMER BANNER */}
-        <Card className="border-2 sm:border-4 border-rose-500 shadow-lg sm:shadow-2xl rounded-2xl sm:rounded-3xl bg-gradient-to-r from-rose-50 to-red-50">
-          <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
-            <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
-              <div className="flex-shrink-0">
-                <ShieldAlert className="h-8 w-8 sm:h-10 sm:w-10 text-rose-700" />
-              </div>
-              <div className="space-y-2 sm:space-y-3 flex-1">
-                <h2 className="text-lg sm:text-xl md:text-2xl font-black text-rose-900 uppercase tracking-tight">
-                  ⚠️ Public Tool - Important Notice
-                </h2>
-                <div className="space-y-1.5 sm:space-y-2 text-rose-900 font-bold text-xs sm:text-sm md:text-base">
-                  <p className="leading-relaxed">
-                    <strong className="text-rose-700">DO NOT upload sensitive, confidential, or proprietary information.</strong> All data uploaded is stored publicly and accessible to others.
-                  </p>
-                  <p className="leading-relaxed">
-                    <strong className="text-rose-700">Recommended Use:</strong> Upload publicly available regulatory documents only (AEMO, AEMC, AER, ESB). This tool extracts requirements, generates RTM and functional specifications.
-                  </p>
-                  <p className="text-xs sm:text-sm text-rose-800 italic">
-                    By uploading, you acknowledge all content will be publicly visible.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <div className="text-center space-y-2 sm:space-y-3 py-3 sm:py-6">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-neutral-900 tracking-tight px-2">
             AI Regulatory Intelligence
@@ -341,13 +314,24 @@ export default function Home() {
           <CardHeader className="bg-gradient-to-r from-[#7B9B7B] to-[#6B8B6B] border-b-2 border-neutral-300 p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 sm:gap-3 text-white text-base sm:text-lg md:text-xl">
               <Upload className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
-              Upload Document
+              Upload Regulatory Document
             </CardTitle>
             <CardDescription className="text-white/90 mt-1 sm:mt-2 font-medium text-xs sm:text-sm">
-              Supports AEMO, AEMC, AER, ESB regulatory documents (PDF, max 50MB)
+              Supports AEMO, AEMC, AER, and ESC regulatory documents (PDF, max 50MB)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4 pt-4 sm:pt-6 p-3 sm:p-6">
+            {/* Inline usage notice */}
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <p className="font-semibold">For public regulatory documents only</p>
+                  <p className="text-xs mt-1 text-blue-800">Upload publicly available AEMO, AEMC, AER, or ESB regulations. Do not upload confidential or proprietary materials.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <input
                 type="file"
@@ -610,6 +594,16 @@ export default function Home() {
             </Card>
           </div>
         )}
+
+        {/* Footer Privacy Notice */}
+        <Card className="border border-neutral-300 rounded-2xl bg-neutral-50">
+          <CardContent className="p-4">
+            <p className="text-xs text-neutral-600 text-center">
+              <strong>Privacy Notice:</strong> This is a public tool. Uploaded documents are stored publicly and accessible to others. 
+              Only upload publicly available regulatory materials. By using this tool, you acknowledge that all uploaded content will be publicly visible.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
