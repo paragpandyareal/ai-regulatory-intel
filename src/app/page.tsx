@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -38,6 +38,9 @@ export default function Home() {
   const [funcSpecCost, setFuncSpecCost] = useState<number | null>(null);
   const [calendarKey, setCalendarKey] = useState(0);
   const [showDateInput, setShowDateInput] = useState(true);
+  const [loadingDocument, setLoadingDocument] = useState(false);
+  
+  const obligationsRef = useRef<HTMLDivElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -66,6 +69,27 @@ export default function Home() {
       console.error('Error checking dates:', err);
     }
     return false;
+  };
+
+  const handleCalendarDocumentClick = async (docId: string, docTitle: string) => {
+    setLoadingDocument(true);
+    setDocumentId(docId);
+    setDocumentTitle(docTitle);
+    setStage('complete');
+    setShowDateInput(false);
+    
+    try {
+      await fetchObligations(docId);
+      
+      // Scroll to obligations section after a brief delay
+      setTimeout(() => {
+        obligationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    } catch (err) {
+      console.error('Error loading document:', err);
+    } finally {
+      setLoadingDocument(false);
+    }
   };
 
   const handleUpload = async (forceReprocess = false) => {
@@ -107,7 +131,6 @@ export default function Home() {
         setProgress(100);
         await fetchObligations(uploadData.document.id);
         
-        // Check if dates already exist for this duplicate
         const hasExistingDates = await checkIfDatesExist(uploadData.document.id);
         setShowDateInput(!hasExistingDates);
         
@@ -284,7 +307,7 @@ export default function Home() {
           <p className="text-lg text-neutral-600 font-medium">Upload an Australian energy regulation PDF to extract and classify obligations</p>
         </div>
 
-        <ComplianceCalendar key={calendarKey} />
+        <ComplianceCalendar key={calendarKey} onDocumentClick={handleCalendarDocumentClick} />
 
         <Card className="border-neutral-300 shadow-lg rounded-3xl overflow-hidden bg-white">
           <CardHeader className="bg-gradient-to-r from-[#7B9B7B] to-[#6B8B6B] border-b-2 border-neutral-300">
@@ -360,7 +383,16 @@ export default function Home() {
           />
         )}
 
-        {stage === 'complete' && obligations.length > 0 && (
+        {loadingDocument && (
+          <Card className="border-neutral-300 shadow-md rounded-3xl bg-white">
+            <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-[#7B9B7B]" />
+              <p className="text-sm text-neutral-600 font-medium">Loading obligations for {documentTitle}...</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {stage === 'complete' && obligations.length > 0 && !loadingDocument && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card className="border-neutral-300 shadow-md rounded-3xl hover:shadow-lg transition-shadow bg-white">
@@ -484,66 +516,68 @@ export default function Home() {
           </>
         )}
 
-        {obligations.length > 0 && (
-          <Card className="border-neutral-300 shadow-lg rounded-3xl bg-white">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-neutral-300">
-              <CardTitle className="flex items-center gap-3 text-neutral-900 text-xl font-bold">
-                <FileText className="h-6 w-6 text-blue-700" />
-                Extracted Obligations ({obligations.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {obligations.map((ob) => (
-                  <div key={ob.id} className="border-2 border-neutral-300 rounded-2xl p-5 space-y-3 hover:shadow-lg transition-all bg-white hover:border-blue-400">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 ${typeBadgeColor(ob.obligation_type || 'guidance')}`}>
-                          {(ob.obligation_type || 'GUIDANCE').toUpperCase()}
-                        </span>
-                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 ${effortBadgeColor(ob.estimated_effort || 'medium')}`}>
-                          {(ob.estimated_effort || 'MEDIUM').toUpperCase()} EFFORT
-                        </span>
-                        {ob.implementation_type && ob.implementation_type !== 'no_change' && (
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-indigo-100 text-indigo-800 border-indigo-300">
-                            {ob.implementation_type.replace('_', ' ').toUpperCase()}
+        {obligations.length > 0 && !loadingDocument && (
+          <div ref={obligationsRef}>
+            <Card className="border-neutral-300 shadow-lg rounded-3xl bg-white">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-neutral-300">
+                <CardTitle className="flex items-center gap-3 text-neutral-900 text-xl font-bold">
+                  <FileText className="h-6 w-6 text-blue-700" />
+                  Obligations for: {documentTitle} ({obligations.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {obligations.map((ob) => (
+                    <div key={ob.id} className="border-2 border-neutral-300 rounded-2xl p-5 space-y-3 hover:shadow-lg transition-all bg-white hover:border-blue-400">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 ${typeBadgeColor(ob.obligation_type || 'guidance')}`}>
+                            {(ob.obligation_type || 'GUIDANCE').toUpperCase()}
                           </span>
-                        )}
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 ${effortBadgeColor(ob.estimated_effort || 'medium')}`}>
+                            {(ob.estimated_effort || 'MEDIUM').toUpperCase()} EFFORT
+                          </span>
+                          {ob.implementation_type && ob.implementation_type !== 'no_change' && (
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-indigo-100 text-indigo-800 border-indigo-300">
+                              {ob.implementation_type.replace('_', ' ').toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className={`text-base font-bold ${confidenceColor(ob.confidence || 0)}`}>
+                            {((ob.confidence || 0) * 100).toFixed(0)}%
+                          </span>
+                          <span className="text-xs text-neutral-600 font-semibold">confidence</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className={`text-base font-bold ${confidenceColor(ob.confidence || 0)}`}>
-                          {((ob.confidence || 0) * 100).toFixed(0)}%
-                        </span>
-                        <span className="text-xs text-neutral-600 font-semibold">confidence</span>
+
+                      <p className="text-sm text-neutral-800 leading-relaxed font-medium">{ob.extracted_text}</p>
+                      <p className="text-xs text-neutral-600 font-semibold">Section {ob.section_number || 'Unknown'}</p>
+
+                      <div className="flex flex-wrap gap-2">
+                        {ob.stakeholders?.map((s, i) => (
+                          <span key={i} className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold bg-neutral-100 text-neutral-800 border-2 border-neutral-300">
+                            {s}
+                          </span>
+                        ))}
+                        {ob.impacted_systems?.map((s, i) => (
+                          <span key={i} className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold bg-blue-100 text-blue-800 border-2 border-blue-300">
+                            {s}
+                          </span>
+                        ))}
                       </div>
+
+                      {ob.classification_reasoning && (
+                        <p className="text-xs text-neutral-700 italic bg-neutral-50 p-3 rounded-2xl border-2 border-neutral-200 font-medium">
+                          <strong>AI reasoning:</strong> {ob.classification_reasoning}
+                        </p>
+                      )}
                     </div>
-
-                    <p className="text-sm text-neutral-800 leading-relaxed font-medium">{ob.extracted_text}</p>
-                    <p className="text-xs text-neutral-600 font-semibold">Section {ob.section_number || 'Unknown'}</p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {ob.stakeholders?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold bg-neutral-100 text-neutral-800 border-2 border-neutral-300">
-                          {s}
-                        </span>
-                      ))}
-                      {ob.impacted_systems?.map((s, i) => (
-                        <span key={i} className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold bg-blue-100 text-blue-800 border-2 border-blue-300">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-
-                    {ob.classification_reasoning && (
-                      <p className="text-xs text-neutral-700 italic bg-neutral-50 p-3 rounded-2xl border-2 border-neutral-200 font-medium">
-                        <strong>AI reasoning:</strong> {ob.classification_reasoning}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </main>

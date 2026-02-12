@@ -14,7 +14,11 @@ interface DateGroup {
   totalItems: number;
 }
 
-export default function ComplianceCalendar() {
+interface Props {
+  onDocumentClick?: (documentId: string, documentTitle: string) => void;
+}
+
+export default function ComplianceCalendar({ onDocumentClick }: Props) {
   const [loading, setLoading] = useState(true);
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +40,12 @@ export default function ComplianceCalendar() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDocumentClick = (doc: any) => {
+    if (onDocumentClick) {
+      onDocumentClick(doc.document_id, doc.document_title);
     }
   };
 
@@ -222,7 +232,7 @@ export default function ComplianceCalendar() {
                       return (
                         <div
                           key={group.date}
-                          className="border-2 border-neutral-200 rounded-xl p-4 bg-white hover:shadow-md transition-all cursor-pointer hover:border-[#7B9B7B]"
+                          className="border-2 border-neutral-200 rounded-xl p-4 bg-white hover:shadow-md transition-all"
                         >
                           <div className="flex items-start gap-4">
                             <div className="flex flex-col items-center justify-center bg-gradient-to-br from-[#7B9B7B] to-[#6B8B6B] text-white rounded-xl p-3 min-w-[70px] shadow-md">
@@ -234,9 +244,11 @@ export default function ComplianceCalendar() {
                               {group.documents.map((doc, idx) => (
                                 <div
                                   key={idx}
-                                  className="bg-purple-50 border-2 border-purple-200 text-purple-900 px-4 py-2 rounded-xl font-medium"
+                                  onClick={() => handleDocumentClick(doc)}
+                                  className="bg-purple-50 border-2 border-purple-200 text-purple-900 px-4 py-2 rounded-xl font-medium cursor-pointer hover:bg-purple-100 hover:border-purple-400 transition-all hover:shadow-md"
+                                  title="Click to view obligations"
                                 >
-                                  {doc.description}
+                                  📄 {doc.description}
                                 </div>
                               ))}
                               
@@ -298,8 +310,9 @@ export default function ComplianceCalendar() {
                       {events.documents.slice(0, 2).map((doc, idx) => (
                         <div
                           key={idx}
-                          className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-300 truncate font-medium"
-                          title={doc.description}
+                          onClick={() => handleDocumentClick(doc)}
+                          className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-300 truncate font-medium hover:bg-purple-200 cursor-pointer transition-colors"
+                          title={`${doc.description} - Click to view obligations`}
                         >
                           {doc.description.substring(0, 15)}...
                         </div>
