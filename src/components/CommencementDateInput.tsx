@@ -114,10 +114,10 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
 
   if (loading) {
     return (
-      <Card className="border-neutral-200 shadow-sm rounded-3xl bg-white">
-        <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#7B9B7B]" />
-          <p className="text-sm text-neutral-600">
+      <Card className="border-2 sm:border-neutral-200 shadow-sm rounded-2xl sm:rounded-3xl bg-white">
+        <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12 gap-3 p-4">
+          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-[#7B9B7B]" />
+          <p className="text-xs sm:text-sm text-neutral-600 text-center px-2">
             {extracting ? 'AI extracting commencement dates...' : 'Loading...'}
           </p>
         </CardContent>
@@ -126,19 +126,19 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
   }
 
   return (
-    <Card className="border-neutral-200 shadow-sm rounded-3xl bg-white">
-      <CardHeader className="bg-gradient-to-r from-[#E8EDE8] to-[#EEF0EE] border-b border-neutral-200 pb-6">
-        <CardTitle className="flex items-center gap-2 text-neutral-800">
-          <Calendar className="h-5 w-5 text-[#7B9B7B]" />
+    <Card className="border-2 sm:border-neutral-200 shadow-sm rounded-2xl sm:rounded-3xl bg-white">
+      <CardHeader className="bg-gradient-to-r from-[#E8EDE8] to-[#EEF0EE] border-b border-neutral-200 pb-4 sm:pb-6 p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-neutral-800 text-base sm:text-lg">
+          <Calendar className="h-5 w-5 text-[#7B9B7B] flex-shrink-0" />
           Commencement Dates (Optional)
         </CardTitle>
-        <CardDescription className="text-neutral-600 mt-2">
+        <CardDescription className="text-neutral-600 mt-1 sm:mt-2 text-xs sm:text-sm">
           Review AI-extracted dates, add manually, or skip. These will appear in your compliance calendar.
         </CardDescription>
       </CardHeader>
-      <CardContent className="pt-6 space-y-4">
+      <CardContent className="pt-4 sm:pt-6 space-y-3 sm:space-y-4 p-3 sm:p-6">
         {message && (
-          <div className={`p-3 rounded-2xl text-sm ${
+          <div className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm ${
             message.startsWith('✅') || message.startsWith('✨') 
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
               : message.startsWith('⚠️') || message.startsWith('❌')
@@ -150,20 +150,20 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
         )}
 
         {dates.map((d, index) => (
-          <div key={index} className="flex items-start gap-3">
+          <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3">
             <div className="flex-1 space-y-2">
               <input
                 type="date"
                 value={d.date}
                 onChange={(e) => updateDate(index, 'date', e.target.value)}
-                className="w-full px-4 py-2.5 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#7B9B7B]"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-neutral-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#7B9B7B]"
               />
               <input
                 type="text"
                 value={d.description}
                 onChange={(e) => updateDate(index, 'description', e.target.value)}
-                placeholder="e.g., Final determination - Concessions - Main rule commencement"
-                className="w-full px-4 py-2.5 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#7B9B7B]"
+                placeholder="e.g., Final determination - Main rule commencement"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-neutral-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#7B9B7B]"
               />
             </div>
             {dates.length > 1 && (
@@ -171,7 +171,7 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
                 onClick={() => removeDate(index)}
                 variant="outline"
                 size="sm"
-                className="mt-1 border-red-200 text-red-600 hover:bg-red-50 rounded-xl"
+                className="mt-0 sm:mt-1 border-red-200 text-red-600 hover:bg-red-50 rounded-lg sm:rounded-xl h-auto py-2 sm:py-1.5"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -179,11 +179,11 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
           </div>
         ))}
 
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pt-2">
           <Button
             onClick={addDate}
             variant="outline"
-            className="border-[#7B9B7B] text-[#7B9B7B] hover:bg-[#E8EDE8] rounded-2xl"
+            className="border-[#7B9B7B] text-[#7B9B7B] hover:bg-[#E8EDE8] rounded-xl sm:rounded-2xl text-xs sm:text-sm py-5 sm:py-2.5"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Another Date
@@ -192,7 +192,7 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
           <Button
             onClick={saveDates}
             disabled={saving}
-            className="bg-[#7B9B7B] hover:bg-[#6B8B6B] text-white rounded-2xl"
+            className="bg-[#7B9B7B] hover:bg-[#6B8B6B] text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm py-5 sm:py-2.5"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -205,7 +205,7 @@ export default function CommencementDateInput({ documentId, documentTitle, onSav
           <Button
             onClick={handleSkip}
             variant="outline"
-            className="border-neutral-300 text-neutral-600 hover:bg-neutral-50 rounded-2xl"
+            className="border-neutral-300 text-neutral-600 hover:bg-neutral-50 rounded-xl sm:rounded-2xl text-xs sm:text-sm py-5 sm:py-2.5"
           >
             <X className="h-4 w-4 mr-2" />
             Skip for Now
