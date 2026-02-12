@@ -1,16 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, Info, Archive } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, Info } from 'lucide-react';
 import ComplianceCalendar from '@/components/ComplianceCalendar';
 import CommencementDateInput from '@/components/CommencementDateInput';
-import Logo from '@/components/Logo';
-import PlatformStats from '@/components/PlatformStats';
 
 interface Obligation {
   id: string;
@@ -27,7 +23,7 @@ interface Obligation {
 
 type ProcessingStage = 'idle' | 'uploading' | 'parsing' | 'extracting' | 'classifying' | 'complete' | 'error';
 
-function HomeContent() {
+export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<ProcessingStage>('idle');
   const [progress, setProgress] = useState(0);
@@ -43,52 +39,8 @@ function HomeContent() {
   const [calendarKey, setCalendarKey] = useState(0);
   const [showDateInput, setShowDateInput] = useState(true);
   const [loadingDocument, setLoadingDocument] = useState(false);
-  const [processingMessage, setProcessingMessage] = useState<string>('');
   
   const obligationsRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
-
-  // Load document from URL parameter
-  useEffect(() => {
-    const docId = searchParams.get('docId');
-    console.log('[URL Params] docId from URL:', docId);
-    if (docId) {
-      console.log('[URL Params] Loading document:', docId);
-      handleLoadArchivedDocument(docId);
-    }
-  }, [searchParams]);
-
-  const handleLoadArchivedDocument = async (docId: string) => {
-    console.log("[Archive Load] Starting to load:", docId);
-    try {
-      setLoadingDocument(true);
-      setDocumentId(docId);
-      setStage('complete');
-      setShowDateInput(false);
-      
-      // Fetch document details
-      const docRes = await fetch(`/api/document-details?documentId=${docId}`);
-      if (docRes.ok) {
-        const docData = await docRes.json();
-        setDocumentTitle(docData.title);
-        setProcessingCost(docData.processing_cost || 0);
-      }
-      
-      // Fetch obligations
-      await fetchObligations(docId);
-      
-      // Scroll to obligations section
-      setTimeout(() => {
-        obligationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
-    } catch (err) {
-      console.error('Error loading archived document:', err);
-      setError('Failed to load document from archive');
-    } finally {
-      setLoadingDocument(false);
-    }
-  };
-
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -151,32 +103,11 @@ function HomeContent() {
       setFuncSpecCost(null);
       setShowDateInput(true);
 
-      // Convert PDF to base64
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const pdfBase64 = buffer.toString('base64');
-
-      // Extract page count using Claude API
-      let pageCount = 0;
-      try {
-        const pageCountRes = await fetch('/api/extract-page-count', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pdfBase64 }),
-        });
-        const pageCountData = await pageCountRes.json();
-        pageCount = pageCountData.pageCount || 0;
-        console.log(`[Upload] Claude detected ${pageCount} pages`);
-      } catch (err) {
-        console.error('Page count extraction failed:', err);
-      }
-
       const formData = new FormData();
       formData.append('file', file);
       formData.append('title', file.name.replace('.pdf', ''));
       formData.append('source', 'AEMO');
       formData.append('documentType', 'Procedure');
-      formData.append('pageCount', pageCount.toString());
 
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
       const uploadData = await uploadRes.json();
@@ -207,7 +138,6 @@ function HomeContent() {
 
       setProgress(25);
       setStage('parsing');
-      setProcessingMessage('AI is analyzing your document - this typically takes 2-10 minutes depending on document size and complexity');
 
       const processRes = await fetch('/api/process', {
         method: 'POST',
@@ -220,7 +150,6 @@ function HomeContent() {
 
       setProgress(80);
       setStage('classifying');
-      setProcessingMessage('Processing continues - extracting obligations and running AI classification...');
 
       const processData = await processRes.json();
 
@@ -229,30 +158,8 @@ function HomeContent() {
       setProcessingCost(processData.cost || 0);
       setProgress(100);
       setStage('complete');
-      setProcessingMessage('');
 
-      const docId = uploadData.document.id;
-      const obligationsCount = await fetchObligations(docId);
-      
-      // Update document metadata after processing
-      console.log('[Metadata] Updating doc:', docId, 'with', obligationsCount, 'obligations');
-      try {
-        const metadataRes = await fetch('/api/update-document-metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            documentId: docId, 
-            processing_cost: processData.cost || 0,
-            obligation_count: obligationsCount,
-            processed_at: new Date().toISOString(),
-            extraction_status: 'complete'
-          }),
-        });
-        const metadataData = await metadataRes.json();
-        console.log('[Metadata] Update response:', metadataData);
-      } catch (err) {
-        console.error('[Metadata] Update failed:', err);
-      }
+      await fetchObligations(uploadData.document.id);
 
     } catch (err: any) {
       setError(err.message || 'Processing failed');
@@ -260,15 +167,12 @@ function HomeContent() {
     }
   };
 
-  const fetchObligations = async (docId: string): Promise<number> => {
+  const fetchObligations = async (docId: string) => {
     const res = await fetch(`/api/obligations?documentId=${docId}`);
     if (res.ok) {
       const data = await res.json();
-      const obligations = data.obligations || [];
-      setObligations(obligations);
-      return obligations.length;
+      setObligations(data.obligations || []);
     }
-    return 0;
   };
 
   const handleDatesSaved = () => {
@@ -395,26 +299,13 @@ function HomeContent() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-3 sm:p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 md:space-y-8">
-        <div className="text-center space-y-6 sm:space-y-8 py-6 sm:py-8">
-          <div className="flex items-center justify-center gap-4 mb-2">
-            <Link href="/archive">
-              <Button 
-                variant="outline" 
-                className="bg-white border-2 border-[#7B9B7B] text-[#7B9B7B] hover:bg-[#E8EDE8] rounded-xl font-bold"
-              >
-                <Archive className="h-4 w-4 mr-2" />
-                View Archive
-              </Button>
-            </Link>
-          </div>
-          
-          <Logo />
-          
-          <p className="text-base sm:text-lg md:text-xl text-neutral-600 font-medium px-4 max-w-3xl mx-auto">
+        <div className="text-center space-y-2 sm:space-y-3 py-3 sm:py-6">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-neutral-900 tracking-tight px-2">
+            AI Regulatory Intelligence
+          </h1>
+          <p className="text-sm sm:text-base md:text-lg text-neutral-600 font-medium px-4">
             Upload Australian energy regulation PDFs to extract and classify obligations
           </p>
-          
-          <PlatformStats />
         </div>
 
         <ComplianceCalendar key={calendarKey} onDocumentClick={handleCalendarDocumentClick} />
@@ -436,7 +327,7 @@ function HomeContent() {
                 <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-blue-900">
                   <p className="font-semibold">For public regulatory documents only</p>
-                  <p className="text-xs mt-1 text-blue-800">Upload publicly available AEMO, AEMC, AER, or ESC regulations. Do not upload confidential or proprietary materials.</p>
+                  <p className="text-xs mt-1 text-blue-800">Upload publicly available AEMO, AEMC, AER, or ESB regulations. Do not upload confidential or proprietary materials.</p>
                 </div>
               </div>
             </div>
@@ -484,20 +375,6 @@ function HomeContent() {
                   )}
                 </div>
                 <Progress value={progress} className="h-2 sm:h-3 bg-neutral-200" />
-                {processingMessage && (
-                  <div className="mt-2 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
-                    <p className="text-sm text-blue-900 font-medium animate-pulse">
-                      ⏳ {processingMessage}
-                    </p>
-                  </div>
-                )}
-                {isProcessing && (
-                  <div className="mt-2 p-3 bg-amber-50 border-l-4 border-amber-400 rounded">
-                    <p className="text-xs text-amber-900 font-semibold">
-                      💡 Deep AI analysis in progress. This typically takes 2-10 minutes depending on document size and complexity. Please be patient - we're doing a thorough job!
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 
@@ -593,16 +470,11 @@ function HomeContent() {
                       className="w-full bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-neutral-900 rounded-xl sm:rounded-2xl shadow-md font-bold text-sm sm:text-base py-5 sm:py-6 border-2 border-amber-500"
                     >
                       {generatingRTM ? (
-                        <>
-                          <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin mr-2" />
-                          Generating RTM...
-                        </>
+                        <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin mr-2" />
                       ) : (
-                        <>
-                          <FileSpreadsheet className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                          Generate RTM
-                        </>
+                        <FileSpreadsheet className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       )}
+                      Generate RTM
                     </Button>
                     {rtmCost !== null && (
                       <div className="flex items-center justify-between text-xs bg-white p-2 rounded-xl border-2 border-emerald-300">
@@ -625,16 +497,11 @@ function HomeContent() {
                       className="w-full bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-neutral-900 rounded-xl sm:rounded-2xl shadow-md font-bold text-sm sm:text-base py-5 sm:py-6 border-2 border-amber-500"
                     >
                       {generatingFuncSpec ? (
-                        <>
-                          <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin mr-2" />
-                          Generating Spec...
-                        </>
+                        <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin mr-2" />
                       ) : (
-                        <>
-                          <ScrollText className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                          Generate Functional Spec
-                        </>
+                        <ScrollText className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       )}
+                      Generate Functional Spec
                     </Button>
                     {funcSpecCost !== null && (
                       <div className="flex items-center justify-between text-xs bg-white p-2 rounded-xl border-2 border-emerald-300">
@@ -651,16 +518,13 @@ function HomeContent() {
                     )}
                   </div>
                 </div>
-                <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-amber-50 rounded-xl sm:rounded-2xl text-xs border-2 border-amber-300">
-                  <p className="flex items-center gap-2 font-bold text-sm text-amber-900 mb-2">
-                    <Clock className="h-4 w-4 flex-shrink-0" />
-                    ⏱️ Generation takes 20-60 seconds per document
+                <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl text-xs text-neutral-700 space-y-1 border-2 border-amber-200">
+                  <p className="flex items-center gap-2 font-bold text-xs sm:text-sm">
+                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    Generation takes 20-60 seconds per document
                   </p>
-                  <p className="font-medium text-amber-800"><strong>RTM:</strong> Requirement Traceability Matrix with 4 tabs</p>
-                  <p className="font-medium text-amber-800"><strong>Func Spec:</strong> Complete functional specification</p>
-                  {(generatingRTM || generatingFuncSpec) && (
-                    <p className="font-semibold text-amber-900 mt-2 animate-pulse">💡 Claude is doing deep analysis - please be patient for best results!</p>
-                  )}
+                  <p className="font-medium"><strong>RTM:</strong> Requirement Traceability Matrix with 4 tabs</p>
+                  <p className="font-medium"><strong>Func Spec:</strong> Complete functional specification</p>
                 </div>
               </CardContent>
             </Card>
@@ -742,13 +606,5 @@ function HomeContent() {
         </Card>
       </div>
     </main>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-      <HomeContent />
-    </Suspense>
   );
 }

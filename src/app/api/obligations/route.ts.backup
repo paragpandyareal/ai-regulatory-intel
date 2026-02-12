@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
-    const documentId = request.nextUrl.searchParams.get('documentId') || request.nextUrl.searchParams.get('docId');
+    const documentId = request.nextUrl.searchParams.get('documentId');
 
     if (!documentId) {
       return NextResponse.json({ error: 'documentId is required' }, { status: 400 });

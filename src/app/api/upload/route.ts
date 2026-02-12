@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     const title = formData.get('title') as string;
     const source = formData.get('source') as string || 'AEMO';
     const documentType = formData.get('documentType') as string || 'Procedure';
+    const pageCount = formData.get('pageCount') as string; // Will be sent from frontend
 
     if (!file || !(file.name.toLowerCase().endsWith('.pdf'))) {
       return NextResponse.json({ error: 'Please upload a PDF file' }, { status: 400 });
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Check for duplicate
     const { data: existing } = await supabaseAdmin
       .from('documents')
-      .select('id, title, extraction_status')
+      .select('id, title, extraction_status, page_count')
       .eq('file_hash', fileHash)
       .single();
 
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
         file_hash: fileHash,
         file_url: `hash:${fileHash}`,
         extraction_status: 'pending',
+        page_count: pageCount ? parseInt(pageCount) : 0,
       })
       .select()
       .single();
