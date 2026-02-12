@@ -49,7 +49,6 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
     }
   };
 
-  // Group dates by month
   const groupByMonth = () => {
     const monthMap = new Map<string, DateGroup[]>();
     
@@ -99,15 +98,15 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
 
   if (loading) {
     return (
-      <Card className="border-neutral-300 shadow-md rounded-3xl bg-white">
-        <CardHeader className="border-b border-neutral-200 bg-white">
-          <CardTitle className="flex items-center gap-2 text-neutral-900">
-            <Calendar className="h-6 w-6 text-[#7B9B7B]" />
+      <Card className="border-2 sm:border-neutral-300 shadow-md rounded-2xl sm:rounded-3xl bg-white">
+        <CardHeader className="border-b border-neutral-200 bg-white p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-neutral-900 text-base sm:text-lg">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-[#7B9B7B]" />
             Compliance Calendar
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-[#7B9B7B]" />
+        <CardContent className="flex items-center justify-center py-8 sm:py-12 p-4">
+          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-[#7B9B7B]" />
         </CardContent>
       </Card>
     );
@@ -115,15 +114,15 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
 
   if (error) {
     return (
-      <Card className="border-neutral-300 shadow-md rounded-3xl bg-white">
-        <CardHeader className="border-b border-neutral-200 bg-white">
-          <CardTitle className="flex items-center gap-2 text-neutral-900">
-            <Calendar className="h-6 w-6 text-[#7B9B7B]" />
+      <Card className="border-2 sm:border-neutral-300 shadow-md rounded-2xl sm:rounded-3xl bg-white">
+        <CardHeader className="border-b border-neutral-200 bg-white p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-neutral-900 text-base sm:text-lg">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-[#7B9B7B]" />
             Compliance Calendar
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-rose-600 font-medium">Error: {error}</p>
+        <CardContent className="p-4 sm:p-6">
+          <p className="text-rose-600 font-medium text-sm">Error: {error}</p>
         </CardContent>
       </Card>
     );
@@ -131,17 +130,17 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
 
   if (dateGroups.length === 0) {
     return (
-      <Card className="border-neutral-300 shadow-md rounded-3xl bg-white">
-        <CardHeader className="border-b border-neutral-200 bg-white">
-          <CardTitle className="flex items-center gap-2 text-neutral-900">
-            <Calendar className="h-6 w-6 text-[#7B9B7B]" />
+      <Card className="border-2 sm:border-neutral-300 shadow-md rounded-2xl sm:rounded-3xl bg-white">
+        <CardHeader className="border-b border-neutral-200 bg-white p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-neutral-900 text-base sm:text-lg">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-[#7B9B7B]" />
             Compliance Calendar
           </CardTitle>
         </CardHeader>
-        <CardContent className="py-12">
+        <CardContent className="py-8 sm:py-12 p-4 sm:p-6">
           <div className="text-center space-y-2">
-            <p className="text-neutral-600 font-medium">No upcoming commencement dates yet.</p>
-            <p className="text-sm text-neutral-500">Upload a regulatory document and add commencement dates!</p>
+            <p className="text-neutral-600 font-medium text-sm">No upcoming commencement dates yet.</p>
+            <p className="text-xs sm:text-sm text-neutral-500">Upload a regulatory document and add commencement dates!</p>
           </div>
         </CardContent>
       </Card>
@@ -153,77 +152,76 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
   const monthName = currentDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
 
   return (
-    <Card className="border-neutral-300 shadow-md rounded-3xl bg-white">
-      <CardHeader className="border-b-2 border-neutral-300 bg-white">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-3 text-neutral-900">
-            <Calendar className="h-6 w-6 text-[#7B9B7B]" />
-            Compliance Calendar
+    <Card className="border-2 sm:border-neutral-300 shadow-md rounded-2xl sm:rounded-3xl bg-white">
+      <CardHeader className="border-b-2 border-neutral-300 bg-white p-3 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="flex items-center gap-2 sm:gap-3 text-neutral-900 text-base sm:text-lg">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-[#7B9B7B] flex-shrink-0" />
+            <span className="whitespace-nowrap">Compliance Calendar</span>
           </CardTitle>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-neutral-100 rounded-xl p-1 border border-neutral-300">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-neutral-100 rounded-lg sm:rounded-xl p-0.5 sm:p-1 border border-neutral-300">
               <Button
                 onClick={() => setViewMode('timeline')}
                 variant={viewMode === 'timeline' ? 'default' : 'ghost'}
                 size="sm"
-                className={`rounded-lg ${viewMode === 'timeline' ? 'bg-[#7B9B7B] text-white' : 'text-neutral-600'}`}
+                className={`rounded-md sm:rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm ${viewMode === 'timeline' ? 'bg-[#7B9B7B] text-white' : 'text-neutral-600'}`}
               >
-                <List className="h-4 w-4 mr-1" />
-                Timeline
+                <List className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Timeline</span>
               </Button>
               <Button
                 onClick={() => setViewMode('month')}
                 variant={viewMode === 'month' ? 'default' : 'ghost'}
                 size="sm"
-                className={`rounded-lg ${viewMode === 'month' ? 'bg-[#7B9B7B] text-white' : 'text-neutral-600'}`}
+                className={`rounded-md sm:rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm ${viewMode === 'month' ? 'bg-[#7B9B7B] text-white' : 'text-neutral-600'}`}
               >
-                <Grid3x3 className="h-4 w-4 mr-1" />
-                Month
+                <Grid3x3 className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Month</span>
               </Button>
             </div>
             
             {viewMode === 'month' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   onClick={prevMonth}
                   variant="outline"
                   size="sm"
-                  className="rounded-xl border-neutral-300"
+                  className="rounded-lg sm:rounded-xl border-neutral-300 h-8 w-8 sm:h-9 sm:w-9 p-0"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
-                <span className="text-sm font-semibold text-neutral-800 min-w-[140px] text-center">
+                <span className="text-xs sm:text-sm font-semibold text-neutral-800 min-w-[100px] sm:min-w-[140px] text-center">
                   {monthName}
                 </span>
                 <Button
                   onClick={nextMonth}
                   variant="outline"
                   size="sm"
-                  className="rounded-xl border-neutral-300"
+                  className="rounded-lg sm:rounded-xl border-neutral-300 h-8 w-8 sm:h-9 sm:w-9 p-0"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </div>
             )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-6">
+      <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
         {viewMode === 'timeline' ? (
-          /* Timeline View - Show all months with regulations */
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {monthGroups.map(([monthKey, groups]) => {
               const [yearStr, monthStr] = monthKey.split('-');
               const monthDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1);
               const displayMonth = monthDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
               
               return (
-                <div key={monthKey} className="border-2 border-neutral-300 rounded-2xl p-5 bg-gradient-to-br from-white to-neutral-50 shadow-sm">
-                  <h3 className="text-lg font-bold text-neutral-900 mb-4 pb-2 border-b-2 border-neutral-200">
+                <div key={monthKey} className="border-2 border-neutral-300 rounded-xl sm:rounded-2xl p-3 sm:p-5 bg-gradient-to-br from-white to-neutral-50 shadow-sm">
+                  <h3 className="text-base sm:text-lg font-bold text-neutral-900 mb-3 sm:mb-4 pb-2 border-b-2 border-neutral-200">
                     {displayMonth}
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {groups.map((group) => {
                       const date = new Date(group.date + 'T00:00:00');
                       const dayNum = date.getDate();
@@ -232,20 +230,20 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
                       return (
                         <div
                           key={group.date}
-                          className="border-2 border-neutral-200 rounded-xl p-4 bg-white hover:shadow-md transition-all"
+                          className="border-2 border-neutral-200 rounded-xl p-3 sm:p-4 bg-white hover:shadow-md transition-all"
                         >
-                          <div className="flex items-start gap-4">
-                            <div className="flex flex-col items-center justify-center bg-gradient-to-br from-[#7B9B7B] to-[#6B8B6B] text-white rounded-xl p-3 min-w-[70px] shadow-md">
-                              <div className="text-2xl font-bold">{dayNum}</div>
-                              <div className="text-xs font-medium uppercase">{dayName}</div>
+                          <div className="flex items-start gap-3 sm:gap-4">
+                            <div className="flex flex-col items-center justify-center bg-gradient-to-br from-[#7B9B7B] to-[#6B8B6B] text-white rounded-lg sm:rounded-xl p-2 sm:p-3 min-w-[50px] sm:min-w-[70px] shadow-md">
+                              <div className="text-xl sm:text-2xl font-bold">{dayNum}</div>
+                              <div className="text-[10px] sm:text-xs font-medium uppercase">{dayName}</div>
                             </div>
                             
-                            <div className="flex-1 space-y-2">
+                            <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
                               {group.documents.map((doc, idx) => (
                                 <div
                                   key={idx}
                                   onClick={() => handleDocumentClick(doc)}
-                                  className="bg-purple-50 border-2 border-purple-200 text-purple-900 px-4 py-2 rounded-xl font-medium cursor-pointer hover:bg-purple-100 hover:border-purple-400 transition-all hover:shadow-md"
+                                  className="bg-purple-50 border-2 border-purple-200 text-purple-900 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium cursor-pointer hover:bg-purple-100 hover:border-purple-400 transition-all hover:shadow-md text-xs sm:text-sm break-words"
                                   title="Click to view obligations"
                                 >
                                   📄 {doc.description}
@@ -253,14 +251,14 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
                               ))}
                               
                               {group.obligations.length > 0 && (
-                                <div className="flex gap-2 pt-1">
+                                <div className="flex gap-1.5 sm:gap-2 pt-1 flex-wrap">
                                   {group.bindingCount > 0 && (
-                                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border-2 border-red-300">
+                                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-red-100 text-red-700 border-2 border-red-300 whitespace-nowrap">
                                       {group.bindingCount} binding
                                     </span>
                                   )}
                                   {group.guidanceCount > 0 && (
-                                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border-2 border-blue-300">
+                                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-100 text-blue-700 border-2 border-blue-300 whitespace-nowrap">
                                       {group.guidanceCount} guidance
                                     </span>
                                   )}
@@ -277,10 +275,9 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
             })}
           </div>
         ) : (
-          /* Month Grid View */
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-sm font-bold text-neutral-700 py-2 bg-neutral-100 rounded-lg border border-neutral-300">
+              <div key={day} className="text-center text-[10px] sm:text-sm font-bold text-neutral-700 py-1.5 sm:py-2 bg-neutral-100 rounded-md sm:rounded-lg border border-neutral-300">
                 {day}
               </div>
             ))}
@@ -297,28 +294,28 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
               return (
                 <div
                   key={day}
-                  className={`aspect-square border-2 rounded-xl p-2 relative ${
+                  className={`aspect-square border-2 rounded-lg sm:rounded-xl p-1 sm:p-2 relative ${
                     isTodayDate ? 'border-[#7B9B7B] bg-[#E8F5E8] shadow-md' : 'border-neutral-300 bg-white'
                   } ${events ? 'cursor-pointer hover:shadow-lg hover:border-[#7B9B7B] transition-all' : ''}`}
                 >
-                  <div className={`text-sm font-bold ${isTodayDate ? 'text-[#7B9B7B]' : 'text-neutral-800'}`}>
+                  <div className={`text-[10px] sm:text-sm font-bold ${isTodayDate ? 'text-[#7B9B7B]' : 'text-neutral-800'}`}>
                     {day}
                   </div>
                   
                   {events && (
-                    <div className="mt-1 space-y-1">
+                    <div className="mt-0.5 sm:mt-1 space-y-0.5 sm:space-y-1">
                       {events.documents.slice(0, 2).map((doc, idx) => (
                         <div
                           key={idx}
                           onClick={() => handleDocumentClick(doc)}
-                          className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-300 truncate font-medium hover:bg-purple-200 cursor-pointer transition-colors"
+                          className="text-[8px] sm:text-[10px] bg-purple-100 text-purple-800 px-1 sm:px-1.5 py-0.5 rounded border border-purple-300 truncate font-medium hover:bg-purple-200 cursor-pointer transition-colors"
                           title={`${doc.description} - Click to view obligations`}
                         >
                           {doc.description.substring(0, 15)}...
                         </div>
                       ))}
                       {events.documents.length > 2 && (
-                        <div className="text-[9px] text-neutral-600 px-1 font-semibold">
+                        <div className="text-[7px] sm:text-[9px] text-neutral-600 px-1 font-semibold">
                           +{events.documents.length - 2} more
                         </div>
                       )}
