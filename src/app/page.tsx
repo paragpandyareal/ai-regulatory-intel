@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, ShieldAlert } from 'lucide-react';
 import ComplianceCalendar from '@/components/ComplianceCalendar';
 import CommencementDateInput from '@/components/CommencementDateInput';
 
@@ -81,7 +81,6 @@ export default function Home() {
     try {
       await fetchObligations(docId);
       
-      // Scroll to obligations section after a brief delay
       setTimeout(() => {
         obligationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 300);
@@ -300,11 +299,38 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 md:p-12">
       <div className="max-w-6xl mx-auto space-y-8">
+        {/* DISCLAIMER BANNER */}
+        <Card className="border-4 border-rose-500 shadow-2xl rounded-3xl bg-gradient-to-r from-rose-50 to-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <ShieldAlert className="h-10 w-10 text-rose-700" />
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-2xl font-black text-rose-900 uppercase tracking-tight">
+                  ⚠️ Public Tool - Important Notice
+                </h2>
+                <div className="space-y-2 text-rose-900 font-bold">
+                  <p className="text-base leading-relaxed">
+                    <strong className="text-rose-700">DO NOT upload sensitive, confidential, or proprietary information.</strong> All data uploaded to this tool is stored publicly and will remain accessible to others.
+                  </p>
+                  <p className="text-base leading-relaxed">
+                    <strong className="text-rose-700">Recommended Use:</strong> Upload publicly available regulatory documents only (e.g., AEMO, AEMC, AER, ESB regulations). This tool extracts requirements, generates RTM (Requirement Traceability Matrix), and creates functional specifications.
+                  </p>
+                  <p className="text-sm text-rose-800 italic">
+                    By uploading a document, you acknowledge that all content will be publicly visible and stored indefinitely.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="text-center space-y-3 py-6">
           <h1 className="text-5xl font-bold text-neutral-900 tracking-tight">
             AI Regulatory Intelligence
           </h1>
-          <p className="text-lg text-neutral-600 font-medium">Upload an Australian energy regulation PDF to extract and classify obligations</p>
+          <p className="text-lg text-neutral-600 font-medium">Upload Australian energy regulation PDFs to extract and classify obligations</p>
         </div>
 
         <ComplianceCalendar key={calendarKey} onDocumentClick={handleCalendarDocumentClick} />
