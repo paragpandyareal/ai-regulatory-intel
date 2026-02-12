@@ -16,9 +16,7 @@ interface ParsedSection {
   section_number: string;
   title: string;
   content: string;
-  page_start: number;
-  page_end: number;
-  has_obligations: boolean;
+  page_number: number;
 }
 
 export async function extractObligations(
@@ -26,14 +24,24 @@ export async function extractObligations(
   documentId: string
 ): Promise<ExtractedObligation[]> {
   const allObligations: ExtractedObligation[] = [];
-  const relevantSections = sections.filter(s => s.has_obligations && s.content && s.content.trim().length > 0);
-
-  console.log('[Extractor] Processing ' + relevantSections.length + ' sections with obligations');
+  
+  // Filter sections that have meaningful content
+  const relevantSections = sections.filter(s => 
+    s.content && 
+    s.content.trim().length > 100 &&
+    (s.content.toLowerCase().includes('must') ||
+     s.content.toLowerCase().includes('shall') ||
+     s.content.toLowerCase().includes('require') ||
+     s.content.toLowerCase().includes('should') ||
+     s.content.toLowerCase().includes('obligation'))
+  );
+  
+  console.log(`[Extractor] Processing ${relevantSections.length} sections with potential obligations`);
 
   for (const section of relevantSections) {
     const startTime = Date.now();
     const cacheKey = `extract_${documentId}_${section.section_number}`;
-
+    
     const { data: cached } = await supabaseAdmin
       .from('processing_cache')
       .select('output, id, hit_count')
@@ -45,111 +53,84 @@ export async function extractObligations(
         .from('processing_cache')
         .update({ hit_count: cached.hit_count + 1 })
         .eq('id', cached.id);
+      
       await logCost(documentId, 'extraction', 'cache', 0, 0, 0, true, Date.now() - startTime);
       allObligations.push(...(cached.output as ExtractedObligation[]));
       continue;
     }
 
-    const chunks = splitContent(section.content, 3000);
-    const sectionObligations: ExtractedObligation[] = [];
+    const prompt = `Extract regulatory obligations from this section.
 
-    for (const chunk of chunks) {
-      const response = await callClaudeWithRetry(
-        `You are an Australian energy regulation expert. Extract ALL obligations from this section text.
+SECTION: ${section.section_number} - ${section.title}
+CONTENT: ${section.content}
 
-SECTION ${section.section_number}: ${section.title}
----
-${chunk}
----
+Extract ALL obligations (must/shall/required statements). For each:
 
-RESPOND WITH ONLY A VALID JSON ARRAY. No markdown, no explanation.
-
+Return JSON array:
 [
   {
-    "extracted_text": "The exact obligation sentence (max 2 sentences)",
-    "context": "1 sentence of surrounding context",
+    "extracted_text": "Full obligation text",
+    "context": "Surrounding context",
     "section_number": "${section.section_number}",
-    "page_number": ${section.page_start},
-    "keywords": ["must"],
-    "obligation_type": "binding",
-    "confidence": 0.95
+    "page_number": ${section.page_number},
+    "keywords": ["keyword1", "keyword2"],
+    "obligation_type": "binding|guidance|definition|example",
+    "confidence": 0.0-1.0
   }
 ]
 
-CLASSIFICATION:
-- "binding": must, shall, is required to, is obligated to
-- "guidance": should, may, is recommended
-- "definition": means, refers to, is defined as
-- "example": illustrative content
+If no obligations found, return empty array [].
+Return ONLY valid JSON.`;
 
-If NO obligations, return: []
+    const response = await callClaudeWithRetry(prompt, undefined, 8000);
+    const cost = calculateCost(response.inputTokens, response.outputTokens);
 
-RESPOND WITH ONLY THE JSON ARRAY.`,
-        undefined,
-        8000
-      );
-
-      try {
-        const repaired = repairJson(response.text);
-        const obligations = JSON.parse(repaired);
-        if (Array.isArray(obligations)) {
-          sectionObligations.push(...obligations);
-        }
-      } catch {
-        console.error('[Extractor] JSON parse failed for section ' + section.section_number);
-      }
-
-      const cost = calculateCost(response.inputTokens, response.outputTokens);
-      await logCost(documentId, 'extraction', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
+    let sectionObligations: ExtractedObligation[] = [];
+    try {
+      const cleaned = repairJson(response.text);
+      sectionObligations = JSON.parse(cleaned);
+    } catch (e) {
+      console.error(`[Extractor] JSON parse failed for section ${section.section_number}`);
+      continue;
     }
 
-    await supabaseAdmin.from('processing_cache').insert({
-      cache_key: cacheKey,
-      operation: 'extraction',
-      input_hash: `${documentId}_${section.section_number}`,
-      output: sectionObligations,
-      model: 'claude-haiku-4.5',
-      tokens_used: 0,
-      cost: 0,
-    });
+    if (sectionObligations.length > 0) {
+      // Store in obligations table
+      const obligationsToInsert = sectionObligations.map(ob => ({
+        document_id: documentId,
+        extracted_text: ob.extracted_text,
+        context: ob.context,
+        section_number: ob.section_number,
+        page_number: ob.page_number,
+        keywords: ob.keywords || [],
+        obligation_type: ob.obligation_type || 'guidance',
+        confidence: ob.confidence || 0.5,
+      }));
 
-    allObligations.push(...sectionObligations);
-    await new Promise(resolve => setTimeout(resolve, 300));
-  }
+      await supabaseAdmin.from('obligations').insert(obligationsToInsert);
 
-  const deduped = deduplicateObligations(allObligations);
-  console.log('[Extractor] ' + allObligations.length + ' raw -> ' + deduped.length + ' after dedup');
-  return deduped;
-}
+      // Cache the result
+      await supabaseAdmin.from('processing_cache').insert({
+        cache_key: cacheKey,
+        operation: 'extraction',
+        input_hash: section.section_number,
+        output: sectionObligations,
+        model: 'claude-haiku-4-5-20251001',
+        tokens_used: response.inputTokens + response.outputTokens,
+        cost,
+      });
 
-function splitContent(content: string, maxChars: number): string[] {
-  if (content.length <= maxChars) return [content];
-  const chunks: string[] = [];
-  const paragraphs = content.split(/\n\n+/);
-  let current = '';
-  for (const para of paragraphs) {
-    if (current.length + para.length > maxChars && current.length > 0) {
-      chunks.push(current.trim());
-      current = para;
-    } else {
-      current += '\n\n' + para;
+      allObligations.push(...sectionObligations);
     }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks;
-}
 
-function deduplicateObligations(obligations: ExtractedObligation[]): ExtractedObligation[] {
-  const unique: ExtractedObligation[] = [];
-  for (const ob of obligations) {
-    const isDupe = unique.some(existing => {
-      const wordsA = new Set(existing.extracted_text.toLowerCase().split(/\s+/));
-      const wordsB = new Set(ob.extracted_text.toLowerCase().split(/\s+/));
-      const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
-      const union = new Set([...wordsA, ...wordsB]);
-      return intersection.size / union.size > 0.85;
-    });
-    if (!isDupe) unique.push(ob);
+    await logCost(documentId, 'extraction', 'claude-haiku-4-5-20251001', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
   }
-  return unique;
+
+  // Deduplicate
+  const uniqueObligations = Array.from(
+    new Map(allObligations.map(o => [o.extracted_text, o])).values()
+  );
+
+  console.log(`[Extractor] ${allObligations.length} raw -> ${uniqueObligations.length} after dedup`);
+  return uniqueObligations;
 }

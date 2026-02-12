@@ -1,30 +1,19 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { callClaudeWithRetry, calculateCost, repairJson } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabase';
+import { extractDocumentTopics } from './topic-extractor';
 
-interface ParsedSection {
-  section_number: string;
-  title: string;
-  content: string;
-  page_start: number;
-  page_end: number;
-  has_obligations: boolean;
-}
-
-interface ParsedDocument {
-  title: string;
-  document_type: string;
-  effective_date: string | null;
-  version: string | null;
-  total_pages: number;
-  sections: ParsedSection[];
-}
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
 
 export async function parseDocument(
+  documentId: string,
   pdfBase64: string,
-  documentId: string
-): Promise<ParsedDocument> {
+  title: string
+): Promise<{ sections: any[]; cost: number }> {
   const startTime = Date.now();
-
+  
   const cacheKey = `parse_${documentId}`;
   const { data: cached } = await supabaseAdmin
     .from('processing_cache')
@@ -32,89 +21,92 @@ export async function parseDocument(
     .eq('cache_key', cacheKey)
     .single();
 
-  if (cached) {
+  if (cached?.output) {
+    console.log('[Parser] Cache hit - using cached parse result');
     await supabaseAdmin
       .from('processing_cache')
       .update({ hit_count: cached.hit_count + 1 })
       .eq('id', cached.id);
+    
     await logCost(documentId, 'parsing', 'cache', 0, 0, 0, true, Date.now() - startTime);
-    return cached.output as ParsedDocument;
+    return { sections: cached.output.sections, cost: 0 };
   }
 
-  const response = await callClaudeWithRetry(
-    `You are a regulatory document parser for Australian energy sector documents (AEMO, AEMC, AER, ESB, ESC).
+  const prompt = `You are analyzing an Australian energy market regulatory document. Parse this PDF into structured sections.
 
-Analyze this PDF and extract its structure with obligation-relevant content.
+For each major section, extract:
+- section_number (e.g., "4.2.1", "Schedule A")
+- title (section heading)
+- content (full text of the section)
+- page_number (page where section starts)
 
-RESPOND WITH ONLY VALID JSON. No markdown fences, no explanation.
+Return JSON array:
+[
+  {
+    "section_number": "1.1",
+    "title": "Purpose",
+    "content": "Full text...",
+    "page_number": 1
+  }
+]
 
-{
-  "title": "Full document title",
-  "document_type": "Procedure or Rule or Guideline or Code",
-  "effective_date": "YYYY-MM-DD or null",
-  "version": "version string or null",
-  "total_pages": 90,
-  "sections": [
-    {
-      "section_number": "1.1",
-      "title": "Section title",
-      "content": "Extract obligation sentences and 1 line of context each",
-      "page_start": 1,
-      "page_end": 3,
-      "has_obligations": true
-    }
-  ]
-}
+Focus on sections that contain obligations, requirements, or rules.
+Include schedules and appendices.
+Return ONLY valid JSON array, no explanation or markdown.`;
 
-CRITICAL RULES:
-- List EVERY section in the document including appendices
-- For sections WITH obligations (has_obligations=true):
-  Extract ONLY sentences containing: must, shall, required to, obligated to, should, may, is to, means, refers to, is defined as.
-  Include 1 sentence of context before each obligation sentence.
-  Do NOT include full section text - just the obligation sentences with context.
-- For sections WITHOUT obligations (has_obligations=false):
-  Set content to "" (empty string)
-- This approach keeps the response compact
-- Preserve exact section numbering from the document
-
-RESPOND WITH ONLY THE JSON OBJECT.`,
-    pdfBase64,
-    32000
-  );
-
+  const response = await callClaudeWithRetry(prompt, pdfBase64, 16000);
   const cost = calculateCost(response.inputTokens, response.outputTokens);
-  await logCost(documentId, 'parsing', 'claude-haiku-4.5', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
 
-  let parsed: ParsedDocument;
+  let sections: any[] = [];
   try {
+    // Try repair function first
     const cleaned = repairJson(response.text);
-    parsed = JSON.parse(cleaned);
+    sections = JSON.parse(cleaned);
+    
+    // Validate structure
+    if (!Array.isArray(sections)) {
+      throw new Error('Response is not an array');
+    }
+    
+    // Ensure each section has required fields
+    sections = sections.filter(s => 
+      s.section_number && 
+      s.title && 
+      s.content && 
+      typeof s.page_number === 'number'
+    );
+    
+    if (sections.length === 0) {
+      throw new Error('No valid sections found');
+    }
+    
+    console.log(`[Parser] Successfully parsed ${sections.length} sections`);
   } catch (e) {
-    console.error('[Parser] JSON parse failed. First 2000 chars:', response.text.substring(0, 2000));
-    console.error('[Parser] Last 500 chars:', response.text.substring(response.text.length - 500));
-    throw new Error('AI returned invalid JSON for document parsing');
+    console.error('[Parser] JSON parse failed. Response preview:', response.text.substring(0, 500));
+    throw new Error('Failed to parse document structure');
   }
 
-  if (!parsed.sections || !Array.isArray(parsed.sections)) {
-    throw new Error('Parser returned no sections array');
-  }
-
-  console.log('[Parser] Found ' + parsed.sections.length + ' sections, ' + parsed.sections.filter(s => s.has_obligations).length + ' with obligations');
-
+  // Cache the result
   await supabaseAdmin.from('processing_cache').insert({
     cache_key: cacheKey,
     operation: 'parsing',
     input_hash: documentId,
-    output: parsed,
-    model: 'claude-haiku-4.5',
+    output: { sections },
+    model: 'claude-haiku-4-5-20251001',
     tokens_used: response.inputTokens + response.outputTokens,
     cost,
   });
 
-  return parsed;
+  await logCost(documentId, 'parsing', 'claude-haiku-4-5-20251001', response.inputTokens, response.outputTokens, cost, false, Date.now() - startTime);
+
+  // Extract topics for document intelligence
+  const firstPageText = sections.slice(0, 3).map(s => s.content).join('\n');
+  await extractDocumentTopics(documentId, title, firstPageText);
+
+  return { sections, cost };
 }
 
-async function logCost(
+export async function logCost(
   documentId: string,
   operation: string,
   model: string,
@@ -123,7 +115,7 @@ async function logCost(
   cost: number,
   cacheHit: boolean,
   durationMs: number
-) {
+): Promise<void> {
   await supabaseAdmin.from('cost_log').insert({
     document_id: documentId,
     operation,
@@ -135,5 +127,3 @@ async function logCost(
     duration_ms: durationMs,
   });
 }
-
-export { calculateCost, logCost };
