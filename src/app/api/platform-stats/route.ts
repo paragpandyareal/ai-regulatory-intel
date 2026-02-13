@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     // Get documents that are archived and have obligations (regardless of extraction_status)
     const { data: documents, error } = await supabaseAdmin
       .from('documents')
-      .select('id, obligation_count, page_count')
+      .select('id, obligation_count, page_count, processing_cost')
       .eq('is_archived', true)
       .gt('obligation_count', 0);
 
@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
         documentCount: 0, 
         totalObligations: 0,
         pageCount: 0,
-        hoursSaved: 0 
+        hoursSaved: 0,
+        totalCost: 0
       });
     }
 
@@ -35,11 +36,15 @@ export async function GET(request: NextRequest) {
     // Calculate hours saved: Manual analysis = 4 pages/hour for regulatory docs (15 min per page)
     const hoursSaved = Math.round(totalPages / 4);
 
+    // Calculate total processing cost
+    const totalCost = documents?.reduce((sum, doc) => sum + (doc.processing_cost || 0), 0) || 0;
+
     return NextResponse.json({ 
       documentCount,
       totalObligations,
       pageCount: totalPages,
-      hoursSaved
+      hoursSaved,
+      totalCost
     });
 
   } catch (error: any) {
@@ -48,7 +53,8 @@ export async function GET(request: NextRequest) {
       documentCount: 0, 
       totalObligations: 0,
       pageCount: 0,
-      hoursSaved: 0 
+      hoursSaved: 0,
+      totalCost: 0
     });
   }
 }

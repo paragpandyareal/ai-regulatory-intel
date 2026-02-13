@@ -438,6 +438,35 @@ function HomeContent() {
           <PlatformStats />
         </div>
 
+        <Card className="border-2 border-blue-300 shadow-md rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-blue-900 text-lg font-bold">
+              <Info className="h-5 w-5" />
+              How to Use This Tool
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0">
+            <div className="space-y-3 text-sm text-blue-900">
+              <div className="flex gap-3">
+                <span className="font-bold text-blue-700 flex-shrink-0">1.</span>
+                <p><strong>Check if document exists:</strong> Browse the Calendar or Archive to see if someone already uploaded your regulatory document. Click any entry to load its obligations.</p>
+              </div>
+              <div className="flex gap-3">
+                <span className="font-bold text-blue-700 flex-shrink-0">2.</span>
+                <p><strong>Upload new document:</strong> If not found, upload your PDF and click "Process PDF". Be patient - processing takes 2-10 minutes depending on document size, but delivers thorough AI analysis.</p>
+              </div>
+              <div className="flex gap-3">
+                <span className="font-bold text-blue-700 flex-shrink-0">3.</span>
+                <p><strong>Generate deliverables:</strong> Once obligations appear, click "Generate RTM" or "Generate Functional Spec" to create professional Word documents (20-60 seconds each).</p>
+              </div>
+              <div className="flex gap-3">
+                <span className="font-bold text-blue-700 flex-shrink-0">4.</span>
+                <p><strong>Add to calendar:</strong> After processing completes, add commencement dates so the document appears in the Compliance Calendar. This helps everyone track upcoming regulatory deadlines. Click "Save Dates" when done.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <ComplianceCalendar key={calendarKey} onDocumentClick={handleCalendarDocumentClick} />
 
         <Card className="border-2 sm:border-neutral-300 shadow-md sm:shadow-lg rounded-2xl sm:rounded-3xl overflow-hidden bg-white">
