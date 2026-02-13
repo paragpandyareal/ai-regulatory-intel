@@ -239,31 +239,34 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
                             </div>
                             
                             <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
+                              {/* User-added dates with custom descriptions - Purple */}
                               {group.documents.map((doc, idx) => (
                                 <div
                                   key={idx}
                                   onClick={() => handleDocumentClick(doc)}
                                   className="bg-purple-50 border-2 border-purple-200 text-purple-900 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium cursor-pointer hover:bg-purple-100 hover:border-purple-400 transition-all hover:shadow-md text-xs sm:text-sm break-words"
-                                  title="Click to view obligations"
+                                  title="Click to view obligations - User-specified date"
                                 >
                                   📄 {doc.description}
                                 </div>
                               ))}
                               
-                              {group.obligations.length > 0 && (
-                                <div className="flex gap-1.5 sm:gap-2 pt-1 flex-wrap">
-                                  {group.bindingCount > 0 && (
-                                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-red-100 text-red-700 border-2 border-red-300 whitespace-nowrap">
-                                      {group.bindingCount} binding
-                                    </span>
-                                  )}
-                                  {group.guidanceCount > 0 && (
-                                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-100 text-blue-700 border-2 border-blue-300 whitespace-nowrap">
-                                      {group.guidanceCount} guidance
-                                    </span>
-                                  )}
+                              {/* Auto-extracted dates without user descriptions - Orange/Amber */}
+                              {group.documents.length === 0 && group.obligations.length > 0 && (
+                                <div
+                                  onClick={() => handleDocumentClick({
+                                    document_id: group.obligations[0].document_id,
+                                    document_title: group.obligations[0].document_title,
+                                    description: group.obligations[0].document_title
+                                  })}
+                                  className="bg-amber-50 border-2 border-amber-300 text-amber-900 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium cursor-pointer hover:bg-amber-100 hover:border-amber-500 transition-all hover:shadow-md text-xs sm:text-sm break-words"
+                                  title="Click to view obligations - Auto-detected date (not manually specified)"
+                                >
+                                  ⚡ {group.obligations[0].document_title}
                                 </div>
                               )}
+                              
+
                             </div>
                           </div>
                         </div>
@@ -304,6 +307,7 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
                   
                   {events && (
                     <div className="mt-0.5 sm:mt-1 space-y-0.5 sm:space-y-1">
+                      {/* User-added dates - Purple */}
                       {events.documents.slice(0, 2).map((doc, idx) => (
                         <div
                           key={idx}
@@ -314,6 +318,22 @@ export default function ComplianceCalendar({ onDocumentClick }: Props) {
                           {doc.description.substring(0, 15)}...
                         </div>
                       ))}
+                      
+                      {/* Auto-detected dates - Amber (only if no user docs) */}
+                      {events.documents.length === 0 && events.obligations && events.obligations.length > 0 && (
+                        <div
+                          onClick={() => handleDocumentClick({
+                            document_id: events.obligations[0].document_id,
+                            document_title: events.obligations[0].document_title,
+                            description: events.obligations[0].document_title
+                          })}
+                          className="text-[8px] sm:text-[10px] bg-amber-100 text-amber-800 px-1 sm:px-1.5 py-0.5 rounded border border-amber-300 truncate font-medium hover:bg-amber-200 cursor-pointer transition-colors"
+                          title={`${events.obligations[0].document_title} - Auto-detected date`}
+                        >
+                          ⚡{events.obligations[0].document_title.substring(0, 12)}...
+                        </div>
+                      )}
+                      
                       {events.documents.length > 2 && (
                         <div className="text-[7px] sm:text-[9px] text-neutral-600 px-1 font-semibold">
                           +{events.documents.length - 2} more
