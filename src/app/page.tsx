@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, Info, Archive } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Clock, Zap, DollarSign, FileSpreadsheet, ScrollText, RefreshCw, Info, Archive, Calendar } from 'lucide-react';
 import ComplianceCalendar from '@/components/ComplianceCalendar';
 import CommencementDateInput from '@/components/CommencementDateInput';
 import Logo from '@/components/Logo';
@@ -47,6 +47,25 @@ function HomeContent() {
   
   const obligationsRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
+
+  const handleLogoClick = () => {
+    // Reset all state to initial values
+    setFile(null);
+    setStage('idle');
+    setProgress(0);
+    setObligations([]);
+    setError(null);
+    setProcessingCost(0);
+    setDocumentId(null);
+    setDocumentTitle('');
+    setRtmCost(null);
+    setFuncSpecCost(null);
+    setShowDateInput(true);
+    setLoadingDocument(false);
+    setProcessingMessage('');
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Load document from URL parameter
   useEffect(() => {
@@ -408,7 +427,9 @@ function HomeContent() {
             </Link>
           </div>
           
-          <Logo />
+          <div onClick={handleLogoClick} className="inline-block cursor-pointer">
+            <Logo />
+          </div>
           
           <p className="text-base sm:text-lg md:text-xl text-neutral-600 font-medium px-4 max-w-3xl mx-auto">
             Upload Australian energy regulation PDFs to extract and classify obligations
@@ -510,7 +531,7 @@ function HomeContent() {
           </CardContent>
         </Card>
 
-        {stage === 'complete' && documentId && showDateInput && (
+        {documentId && showDateInput && (
           <CommencementDateInput 
             documentId={documentId} 
             documentTitle={documentTitle}
@@ -671,10 +692,20 @@ function HomeContent() {
           <div ref={obligationsRef}>
             <Card className="border-2 sm:border-neutral-300 shadow-md sm:shadow-lg rounded-2xl sm:rounded-3xl bg-white">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-neutral-300 p-4 sm:p-6">
-                <CardTitle className="flex items-start gap-2 sm:gap-3 text-neutral-900 text-base sm:text-lg md:text-xl font-bold">
-                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-blue-700 flex-shrink-0 mt-0.5" />
-                  <span className="break-words">Obligations for: {documentTitle} ({obligations.length})</span>
-                </CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <CardTitle className="flex items-start gap-2 sm:gap-3 text-neutral-900 text-base sm:text-lg md:text-xl font-bold">
+                    <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-blue-700 flex-shrink-0 mt-0.5" />
+                    <span className="break-words">Obligations for: {documentTitle} ({obligations.length})</span>
+                  </CardTitle>
+                  <Button
+                    onClick={() => setShowDateInput(true)}
+                    variant="outline"
+                    className="bg-white border-2 border-blue-500 text-blue-700 hover:bg-blue-50 rounded-xl font-bold text-sm whitespace-nowrap"
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Manage Dates
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
                 <div className="space-y-3 sm:space-y-4">
