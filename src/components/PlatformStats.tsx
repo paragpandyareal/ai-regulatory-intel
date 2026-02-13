@@ -40,8 +40,8 @@ export default function PlatformStats() {
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 [&>*:last-child:nth-child(odd)]:col-span-2 [&>*:last-child:nth-child(odd)]:max-w-[50%] [&>*:last-child:nth-child(odd)]:mx-auto">
-      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 justify-items-center lg:justify-items-stretch">
+      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow w-full">
         <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -53,7 +53,7 @@ export default function PlatformStats() {
         </CardContent>
       </Card>
 
-      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow">
+      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow w-full">
         <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -65,7 +65,7 @@ export default function PlatformStats() {
         </CardContent>
       </Card>
 
-      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow">
+      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow w-full">
         <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -77,7 +77,7 @@ export default function PlatformStats() {
         </CardContent>
       </Card>
 
-      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow">
+      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow w-full">
         <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -89,7 +89,7 @@ export default function PlatformStats() {
         </CardContent>
       </Card>
 
-      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow">
+      <Card className="border-2 border-neutral-300 shadow-md rounded-2xl bg-white hover:shadow-lg transition-shadow w-full lg:col-start-auto col-span-2 max-w-[50%] lg:max-w-none mx-auto lg:mx-0">
         <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
