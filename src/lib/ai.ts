@@ -9,7 +9,8 @@ export async function callClaude(
   prompt: string,
   pdfBase64?: string,
   maxTokens: number = 16000,
-  model: string = 'claude-haiku-4-5-20251001'
+  model: string = 'claude-haiku-4-5-20251001',
+  jsonMode: 'array' | 'object' | 'none' = 'none'
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const content: any[] = [];
 
@@ -26,18 +27,34 @@ export async function callClaude(
 
   content.push({ type: 'text', text: prompt });
 
+  const messages: any[] = [{ role: 'user', content }];
+
+  // Prefill forces Claude to start with valid JSON
+  if (jsonMode === 'array') {
+    messages.push({ role: 'assistant', content: '[' });
+  } else if (jsonMode === 'object') {
+    messages.push({ role: 'assistant', content: '{' });
+  }
+
   const stream = await anthropic.messages.stream({
     model,
     max_tokens: maxTokens,
-    messages: [{ role: 'user', content }],
+    messages,
   });
 
   const response = await stream.finalMessage();
 
-  const text = response.content
+  let text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
     .map(block => block.text)
     .join('');
+
+  // Re-add the prefill character
+  if (jsonMode === 'array') {
+    text = '[' + text;
+  } else if (jsonMode === 'object') {
+    text = '{' + text;
+  }
 
   return {
     text,
@@ -51,11 +68,12 @@ export async function callClaudeWithRetry(
   pdfBase64?: string,
   maxTokens: number = 16000,
   maxRetries: number = 3,
-  model: string = 'claude-haiku-4-5-20251001'
+  model: string = 'claude-haiku-4-5-20251001',
+  jsonMode: 'array' | 'object' | 'none' = 'none'
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await callClaude(prompt, pdfBase64, maxTokens, model);
+      return await callClaude(prompt, pdfBase64, maxTokens, model, jsonMode);
     } catch (error: any) {
       const isRateLimit = error?.status === 429;
       if (isRateLimit && attempt < maxRetries) {
@@ -77,31 +95,48 @@ export function repairJson(text: string): string {
     .replace(/\s*```$/i, '')
     .trim();
 
+  // Already valid
   try { JSON.parse(clean); return clean; } catch {}
 
+  // Remove trailing commas before } or ]
+  clean = clean.replace(/,\s*([}\]])/g, '$1');
+  try { JSON.parse(clean); return clean; } catch {}
+
+  // Try extracting JSON object
   const objMatch = clean.match(/\{[\s\S]*\}/);
   if (objMatch) {
-    try { JSON.parse(objMatch[0]); return objMatch[0]; } catch {}
+    const fixed = objMatch[0].replace(/,\s*([}\]])/g, '$1');
+    try { JSON.parse(fixed); return fixed; } catch {}
   }
 
+  // Try extracting JSON array
   const arrMatch = clean.match(/\[[\s\S]*\]/);
   if (arrMatch) {
-    try { JSON.parse(arrMatch[0]); return arrMatch[0]; } catch {}
+    const fixed = arrMatch[0].replace(/,\s*([}\]])/g, '$1');
+    try { JSON.parse(fixed); return fixed; } catch {}
   }
 
-  if (clean.startsWith('[')) {
-    const lastComplete = clean.lastIndexOf('},');
+  // Truncated array — close at last complete object
+  if (clean.startsWith('[') || clean.includes('[{')) {
+    const start = clean.indexOf('[');
+    const working = clean.substring(start);
+    
+    // Find last complete }, and close array
+    const lastComplete = working.lastIndexOf('},');
     if (lastComplete > 0) {
-      const repaired = clean.substring(0, lastComplete + 1) + ']';
+      const repaired = working.substring(0, lastComplete + 1) + ']';
       try { JSON.parse(repaired); return repaired; } catch {}
     }
-    const lastBrace = clean.lastIndexOf('}');
+    
+    // Find last } and close array
+    const lastBrace = working.lastIndexOf('}');
     if (lastBrace > 0) {
-      const repaired = clean.substring(0, lastBrace + 1) + ']';
+      const repaired = working.substring(0, lastBrace + 1) + ']';
       try { JSON.parse(repaired); return repaired; } catch {}
     }
   }
 
+  // Truncated object — progressively trim
   if (clean.startsWith('{')) {
     for (let i = clean.length - 1; i > 0; i--) {
       if (clean[i] === '}') {
@@ -111,6 +146,7 @@ export function repairJson(text: string): string {
     }
   }
 
+  // Last resort: extract all individually valid objects
   const objects: string[] = [];
   let depth = 0;
   let start = -1;
@@ -132,12 +168,10 @@ export function repairJson(text: string): string {
 
 export function calculateCost(inputTokens: number, outputTokens: number, isOpus: boolean = false): number {
   if (isOpus) {
-    // Claude Opus 4.6 pricing: $15 per MTok input, $75 per MTok output
     const inputCost = (inputTokens / 1_000_000) * 15.00;
     const outputCost = (outputTokens / 1_000_000) * 75.00;
     return inputCost + outputCost;
   } else {
-    // Haiku pricing: $1 per MTok input, $5 per MTok output
     const inputCost = (inputTokens / 1_000_000) * 1.00;
     const outputCost = (outputTokens / 1_000_000) * 5.00;
     return inputCost + outputCost;
