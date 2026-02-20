@@ -798,6 +798,9 @@ function HomeContent() {
               <strong>Privacy Notice:</strong> This is a public tool. Uploaded documents are stored publicly and accessible to others. 
               Only upload publicly available regulatory materials. By using this tool, you acknowledge that all uploaded content will be publicly visible.
             </p>
+                <p className="text-xs text-neutral-500 text-center border-t border-neutral-200 pt-2">
+      <strong>Disclaimer:</strong> This tool is provided free of charge as an experimental AI resource. Outputs are AI-generated and have not been independently verified — do not rely solely on them for regulatory compliance decisions. Always cross-reference with primary sources (AEMC, AEMO, AER, ESC). Documents uploaded are processed by third-party AI services; no guarantee is made regarding the security or confidentiality of uploaded content. Do not upload sensitive or confidential information. The creator accepts no responsibility or liability for the accuracy, quality, or security of any output or uploaded information. Use at your own risk.
+    </p>
           </CardContent>
         </Card>
       </div>
